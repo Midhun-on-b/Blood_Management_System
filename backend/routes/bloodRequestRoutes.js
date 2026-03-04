@@ -61,4 +61,36 @@ router.get('/', (req, res) => {
 });
 
 
+// =============================
+// UPDATE REQUEST STATUS
+// (Blood Bank Approve / Reject)
+// =============================
+router.put('/:id/status', (req, res) => {
+
+    const { status } = req.body;
+    const requestId = req.params.id;
+
+    const query = `
+        UPDATE blood_request
+        SET status = ?
+        WHERE request_id = ?
+    `;
+
+    db.query(query, [status, requestId], (err, result) => {
+
+        if (err) {
+            console.error("UPDATE ERROR:", err);
+            return res.status(500).json({
+                message: "Server Error"
+            });
+        }
+
+        res.json({
+            message: "Request status updated successfully"
+        });
+    });
+
+});
+
+
 module.exports = router;
