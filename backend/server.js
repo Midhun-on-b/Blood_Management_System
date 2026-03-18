@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+
 const app = express();
 
 app.use(cors());
@@ -7,47 +8,45 @@ app.use(express.json());
 
 
 // =========================
-// Existing Routes
+// Import Routes
 // =========================
 
 const donorRoutes = require("./routes/donorRoutes");
+const donationRoutes = require("./routes/donationRoutes");
+const healthCheckRoutes = require("./routes/healthCheckRoutes");
+const bloodBankRoutes = require("./routes/bloodBankRoutes");
+const bloodRequestRoutes = require("./routes/bloodRequestRoutes");
+const patientRoutes = require("./routes/patientRoutes");
+const hospitalRoutes = require("./routes/hospitalRoutes");
+const hospitalDashboardRoutes = require("./routes/hospitalDashboardRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+
+
+// =========================
+// Register Routes
+// =========================
+
 app.use("/donors", donorRoutes);
 
-const donationRoutes = require("./routes/donationRoutes");
 app.use("/donations", donationRoutes);
 
-const healthCheckRoutes = require("./routes/healthCheckRoutes");
 app.use("/health-checks", healthCheckRoutes);
 
+app.use("/blood-banks", bloodBankRoutes);
 
-// ✅ Blood Bank Routes
-const bloodBankRoutes = require("./routes/bloodBankRoutes");
-app.use("/blood-banks", bloodBankRoutes);   // FIXED HERE
-
-
-// =========================
-// Blood Request Routes
-// =========================
-
-const bloodRequestRoutes = require("./routes/bloodRequestRoutes");
 app.use("/blood-requests", bloodRequestRoutes);
 
-
-// =========================
-// Patient Routes
-// =========================
-
-const patientRoutes = require("./routes/patientRoutes");
 app.use("/patients", patientRoutes);
 
-const hospitalRoutes = require("./routes/hospitalRoutes");
 app.use("/hospitals", hospitalRoutes);
 
-const hospitalDashboardRoutes = require("./routes/hospitalDashboardRoutes");
 app.use("/hospital-dashboard", hospitalDashboardRoutes);
 
-const paymentRoutes = require("./routes/paymentRoutes");
-app.use("/", paymentRoutes);
+// FIXED: Payment routes should NOT use "/"
+app.use("/payments", paymentRoutes);
+
+app.use("/admin", adminRoutes);
 
 
 // =========================

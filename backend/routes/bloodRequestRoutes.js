@@ -38,13 +38,33 @@ router.post('/', (req, res) => {
 
 
 // =============================
-// GET ALL BLOOD REQUESTS
+// GET ALL BLOOD REQUESTS (FINAL ✅)
 // =============================
 router.get('/', (req, res) => {
 
     const query = `
-        SELECT * FROM blood_request
-        ORDER BY request_date DESC
+        SELECT 
+            br.request_id,
+            br.units_required,
+            br.status,
+            br.request_date,
+
+            h.hospital_name,
+            p.name AS patient_name,
+            bb.bank_name
+
+        FROM blood_request br
+
+        LEFT JOIN hospital h 
+            ON br.hospital_id = h.hospital_id
+
+        LEFT JOIN patient p 
+            ON br.patient_id = p.patient_id
+
+        LEFT JOIN blood_bank bb 
+            ON br.bank_id = bb.bank_id
+
+        ORDER BY br.request_date DESC
     `;
 
     db.query(query, (err, results) => {
@@ -63,7 +83,6 @@ router.get('/', (req, res) => {
 
 // =============================
 // UPDATE REQUEST STATUS
-// (Blood Bank Approve / Reject)
 // =============================
 router.put('/:id/status', (req, res) => {
 
