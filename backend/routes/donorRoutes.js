@@ -2,6 +2,80 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
 
+const SETTINGS_FIELDS = {
+  name: "name",
+  age: "age",
+  gender: "gender",
+  phone_no: "phone_no",
+  blood_group: "blood_group",
+  last_donation_date: "last_donation_date",
+  city: "city",
+};
+
+function runQuery(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.query(sql, params, (err, results) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      resolve(results);
+    });
+  });
+}
+
+async function fetchDonorById(donorId) {
+  const results = await runQuery(
+    "SELECT * FROM donor WHERE donor_id = ?",
+    [donorId]
+  );
+
+  return results[0] || null;
+}
+
+function buildSettingsUpdate(body) {
+  const updates = [];
+  const values = [];
+
+  Object.entries(SETTINGS_FIELDS).forEach(([field, column]) => {
+    if (!Object.prototype.hasOwnProperty.call(body, field)) {
+      return;
+    }
+
+    let value = body[field];
+
+    if (typeof value === "string") {
+      value = value.trim();
+    }
+
+    if (field === "age") {
+      const parsedAge = Number(value);
+
+      if (!Number.isInteger(parsedAge) || parsedAge <= 0) {
+        throw new Error("Age must be a positive integer");
+      }
+
+      value = parsedAge;
+    }
+
+    if (field === "last_donation_date" && value) {
+      const parsedDate = new Date(value);
+
+      if (Number.isNaN(parsedDate.getTime())) {
+        throw new Error("Last donation date must be a valid date");
+      }
+
+      value = parsedDate.toISOString().slice(0, 10);
+    }
+
+    updates.push(`${column} = ?`);
+    values.push(value === "" ? null : value);
+  });
+
+  return { updates, values };
+}
+
 // 1️⃣ Get all donors
 router.get("/", (req, res) => {
   db.query("SELECT * FROM donor WHERE status = 'active'", (err, results) => {
@@ -34,6 +108,51 @@ router.get("/:id", (req, res) => {
       }
     }
   );
+});
+
+// Update donor settings
+router.patch("/:id/settings", async (req, res) => {
+  const donorId = req.params.id;
+
+  let updatePayload;
+
+  try {
+    updatePayload = buildSettingsUpdate(req.body || {});
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  if (updatePayload.updates.length === 0) {
+    return res.status(400).json({
+      error:
+        "No valid donor settings provided. Allowed fields: name, age, gender, phone_no, blood_group, last_donation_date, city",
+    });
+  }
+
+  try {
+    const result = await runQuery(
+      `
+        UPDATE donor
+        SET ${updatePayload.updates.join(", ")}
+        WHERE donor_id = ?
+      `,
+      [...updatePayload.values, donorId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Donor not found" });
+    }
+
+    const updatedDonor = await fetchDonorById(donorId);
+
+    return res.json({
+      message: "Donor settings updated successfully",
+      donor: updatedDonor,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Failed to update donor settings" });
+  }
 });
 
 // 3️⃣ Add new donor

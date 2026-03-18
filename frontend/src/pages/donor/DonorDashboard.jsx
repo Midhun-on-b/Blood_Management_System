@@ -25,13 +25,22 @@ export default function DonorDashboard() {
 
     useEffect(() => {
         fetch("http://localhost:5000/donors/1")
-            .then(res => res.json())
+            .then(async (res) => {
+                const data = await res.json();
+
+                if (!res.ok || !data || typeof data.name !== "string") {
+                    throw new Error(data?.message || "Invalid donor response");
+                }
+
+                return data;
+            })
             .then(data => {
                 setDonor(data);
                 setLoading(false);
             })
             .catch(err => {
                 console.error("Error fetching donor:", err);
+                setDonor(null);
                 setLoading(false);
             });
     }, []);
