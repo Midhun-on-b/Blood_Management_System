@@ -43,13 +43,24 @@ router.get('/', (req, res) => {
     const query = `
         SELECT 
             br.request_id,
+            br.hospital_id,
+            br.patient_id,
+            br.bank_id,
             br.units_required,
-            br.status,
+            CONCAT(UCASE(LEFT(br.status, 1)), LCASE(SUBSTRING(br.status, 2))) AS status,
             br.request_date,
 
             h.hospital_name,
+            h.city AS hospital_city,
+
             p.name AS patient_name,
-            bb.bank_name
+            p.blood_group,
+            'General' AS ward,
+
+            bb.bank_name,
+            bb.city AS bank_city,
+
+            'Normal' AS priority
 
         FROM blood_request br
 
