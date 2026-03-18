@@ -15,6 +15,7 @@ import PriorityBadge from '../../components/hospital/PriorityBadge';
 import StatusBadge from '../../components/hospital/StatusBadge';
 import BloodGroupBadge from '../../components/hospital/BloodGroupBadge';
 import BloodAvailabilityBar from '../../components/hospital/BloodAvailabilityBar';
+import HospitalLoadingSkeleton from '../../components/hospital/HospitalLoadingSkeleton';
 
 
 /* ─── KPI StatCard ─────────────────────────────────────────── */
@@ -47,6 +48,25 @@ function StatCard({ icon: Icon, label, value, sub, valueColor, children }) {
     );
 }
 
+async function readJsonSafe(res, fallbackMessage) {
+    const raw = await res.text();
+    let data = null;
+
+    if (raw) {
+        try {
+            data = JSON.parse(raw);
+        } catch {
+            throw new Error(`${fallbackMessage} (non-JSON response)`);
+        }
+    }
+
+    if (!res.ok) {
+        throw new Error(data?.message || fallbackMessage);
+    }
+
+    return data;
+}
+
 
 
 export default function HospitalDashboard() {
@@ -72,30 +92,33 @@ export default function HospitalDashboard() {
 
     const [mockRequestChartData, setMockRequestChartData] = useState([]);
     const [mockBloodGroupDemand, setMockBloodGroupDemand] = useState([]);
+    const [pageLoading, setPageLoading] = useState(true);
+    const [error, setError] = useState('');
 
 
 
     /* ---------------- FETCH DATA ---------------- */
 
     useEffect(() => {
+        const load = async () => {
+            try {
+                const [statsRes, patientsRes, requestsRes, paymentsRes, banksRes] = await Promise.all([
+                    fetch("http://localhost:5000/hospital-dashboard/1/stats"),
+                    fetch("http://localhost:5000/patients"),
+                    fetch("http://localhost:5000/blood-requests"),
+                    fetch("http://localhost:5000/payments"),
+                    fetch("http://localhost:5000/blood-banks")
+                ]);
 
+                const statsData = await readJsonSafe(statsRes, 'Failed to load hospital stats');
+                const patientsData = await readJsonSafe(patientsRes, 'Failed to load patients');
+                const requestsData = await readJsonSafe(requestsRes, 'Failed to load requests');
+                const paymentsData = await readJsonSafe(paymentsRes, 'Failed to load payments');
+                const banksData = await readJsonSafe(banksRes, 'Failed to load blood banks');
 
-        /* DASHBOARD STATS */
-        fetch("http://localhost:5000/hospital-dashboard/1/stats")
-            .then(res => res.json())
-            .then(data => {
-                setStats(data);
-            });
+                setStats(statsData || { patients: 0, requests: 0, payments: 0 });
 
-
-
-        /* PATIENTS */
-
-        fetch("http://localhost:5000/patients")
-            .then(res => res.json())
-            .then(data => {
-
-                const formatted = data.map(p => ({
+                const formattedPatients = (patientsData || []).map(p => ({
                     patient_id: p.patient_id,
                     name: p.name,
                     age: p.age,
@@ -104,19 +127,9 @@ export default function HospitalDashboard() {
                     blood_group: p.blood_group,
                     status: "Stable"
                 }));
+                setMockPatients(formattedPatients);
 
-                setMockPatients(formatted);
-            });
-
-
-
-        /* BLOOD REQUESTS */
-
-        fetch("http://localhost:5000/blood-requests")
-            .then(res => res.json())
-            .then(data => {
-
-                const formatted = data.map(r => ({
+                const formattedRequests = (requestsData || []).map(r => ({
                     request_id: r.request_id,
                     request_date: r.request_date,
                     patient_name: r.patient_name || "Patient",
@@ -127,105 +140,48 @@ export default function HospitalDashboard() {
                     priority: r.priority || "Normal",
                     status: r.status
                 }));
-
-                setMockBloodRequests(formatted);
-
-
-
-                /* BLOOD GROUP DEMAND */
+                setMockBloodRequests(formattedRequests);
 
                 const demand = {};
-
-                formatted.forEach(r => {
-                    demand[r.blood_group] =
-                        (demand[r.blood_group] || 0) + r.units_required;
+                formattedRequests.forEach(r => {
+                    demand[r.blood_group] = (demand[r.blood_group] || 0) + r.units_required;
                 });
-
-                const demandArr = Object.keys(demand).map(g => ({
-                    group: g,
-                    units: demand[g]
-                }));
-
-                setMockBloodGroupDemand(demandArr);
-
-
-
-                /* CHART DATA */
+                setMockBloodGroupDemand(
+                    Object.keys(demand).map(g => ({ group: g, units: demand[g] }))
+                );
 
                 const chart = {};
-
-                formatted.forEach(r => {
-
-                    const month = new Date(r.request_date)
-                        .toLocaleString('default', { month: 'short' });
-
-                    if (!chart[month]) {
-                        chart[month] = {
-                            month,
-                            requests: 0,
-                            fulfilled: 0
-                        };
-                    }
-
+                formattedRequests.forEach(r => {
+                    const month = new Date(r.request_date).toLocaleString('default', { month: 'short' });
+                    if (!chart[month]) chart[month] = { month, requests: 0, fulfilled: 0 };
                     chart[month].requests++;
-
-                    if (r.status === "Fulfilled")
-                        chart[month].fulfilled++;
+                    if (r.status === "Fulfilled") chart[month].fulfilled++;
                 });
-
                 setMockRequestChartData(Object.values(chart));
 
-            });
-
-
-
-        /* PAYMENTS */
-
-        fetch("http://localhost:5000/payments")
-            .then(res => res.json())
-            .then(data => {
-
-                const formatted = data.map(p => ({
+                setMockPayments((paymentsData || []).map(p => ({
                     payment_id: p.payment_id,
                     payment_date: p.payment_date,
                     bank_name: p.bank_name,
                     amount: p.amount,
                     payment_status: p.payment_status
-                }));
+                })));
 
-                setMockPayments(formatted);
-
-            });
-
-
-
-        /* BLOOD BANKS */
-
-        fetch("http://localhost:5000/blood-banks")
-            .then(res => res.json())
-            .then(data => {
-
-                const formatted = data.map(b => ({
+                setMockHospitalBanks((banksData || []).map(b => ({
                     bank_id: b.bank_id,
                     bank_name: b.bank_name,
                     distance_km: b.distance_km || 5,
                     open: true,
-                    stock: {
-                        "A+": 10,
-                        "A-": 5,
-                        "B+": 8,
-                        "B-": 4,
-                        "O+": 12,
-                        "O-": 6,
-                        "AB+": 3,
-                        "AB-": 2
-                    }
-                }));
-
-                setMockHospitalBanks(formatted);
-
-            });
-
+                    stock: { "A+": 10, "A-": 5, "B+": 8, "B-": 4, "O+": 12, "O-": 6, "AB+": 3, "AB-": 2 }
+                })));
+            } catch (err) {
+                console.error(err);
+                setError(err.message || 'Unable to load dashboard data.');
+            } finally {
+                setPageLoading(false);
+            }
+        };
+        load();
     }, []);
 
 
@@ -264,11 +220,30 @@ export default function HospitalDashboard() {
 
     /* ---------------- UI ---------------- */
 
+    if (pageLoading) {
+        return (
+            <HospitalLayout title="Dashboard" page="DASHBOARD">
+                <HospitalLoadingSkeleton showHero cardCount={4} listRows={4} />
+            </HospitalLayout>
+        );
+    }
+
     return (
 
         <HospitalLayout title="Dashboard">
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {error && (
+                    <div style={{
+                        background: '#0F0F17',
+                        border: '1px solid rgba(248,113,113,0.28)',
+                        borderRadius: 14,
+                        padding: 14,
+                        color: '#f87171'
+                    }}>
+                        {error}
+                    </div>
+                )}
 
 
                 {/* KPI */}

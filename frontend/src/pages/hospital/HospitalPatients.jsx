@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutGrid, List, Search, X, Check } from 'lucide-react';
 import HospitalLayout from '../../components/hospital/HospitalLayout';
 import BloodGroupBadge from '../../components/hospital/BloodGroupBadge';
+import HospitalLoadingSkeleton from '../../components/hospital/HospitalLoadingSkeleton';
 
 const WARDS = ['All', 'Emergency', 'Surgery', 'Oncology', 'Maternity'];
 const STATUSES = ['All', 'Critical', 'Stable', 'Admitted'];
@@ -156,6 +157,8 @@ const [status,setStatus]=useState('All');
 const [search,setSearch]=useState('');
 const [showModal,setShowModal]=useState(false);
 const [patients,setPatients]=useState([]);
+const [loading,setLoading]=useState(true);
+const [error,setError]=useState('');
 
 useEffect(()=>{ fetchPatients(); },[]);
 
@@ -164,8 +167,11 @@ try{
 const res = await fetch("http://localhost:5000/patients");
 const data = await res.json();
 setPatients(data);
+setLoading(false);
 }catch(err){
 console.error(err);
+setError('Unable to load patients.');
+setLoading(false);
 }
 };
 
@@ -178,6 +184,14 @@ return mw && ms && mq;
 
 const criticalCount = patients.filter(p=>p.status==='Critical').length;
 
+if(loading){
+return (
+<HospitalLayout title="Patients" page="PATIENTS">
+<HospitalLoadingSkeleton showHero={false} cardCount={3} listRows={5} />
+</HospitalLayout>
+);
+}
+
 return( <HospitalLayout title="Patients" page="PATIENTS">
 
  <AnimatePresence>
@@ -185,6 +199,11 @@ return( <HospitalLayout title="Patients" page="PATIENTS">
  </AnimatePresence>
 
  <div style={{display:'flex',flexDirection:'column',gap:24}}>
+{error && (
+ <div style={{background:'#0F0F17',border:'1px solid rgba(248,113,113,0.28)',borderRadius:14,padding:14,color:'#f87171'}}>
+ {error}
+ </div>
+)}
 
 {/* Stats */}
 

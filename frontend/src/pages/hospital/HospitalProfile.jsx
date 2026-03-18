@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Edit2, Download, Building2 } from 'lucide-react';
 import HospitalLayout from '../../components/hospital/HospitalLayout';
 import { mockBloodRequests, mockPatients, mockHospitalBanks } from '../../data/hospitalMockData';
+import HospitalLoadingSkeleton from '../../components/hospital/HospitalLoadingSkeleton';
 
 const TABS = ['Hospital Details', 'Account Settings'];
 const ALL_DEPTS = ['Emergency', 'Surgery', 'Oncology', 'Maternity', 'ICU', 'Radiology', 'Cardiology', 'Pediatrics'];
@@ -29,6 +30,8 @@ export default function HospitalProfile() {
     const [tab, setTab] = useState(0);
     const [editing, setEditing] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
     const [hospitalId, setHospitalId] = useState(null);
     const [name, setName] = useState('');
@@ -72,10 +75,13 @@ export default function HospitalProfile() {
                 setContact(data.contact_no);
 
                 if (data.beds) setBeds(data.beds);
+                setLoading(false);
 
             } catch (err) {
 
                 console.error("Hospital fetch error:", err);
+                setError("Unable to load hospital profile.");
+                setLoading(false);
 
             }
 
@@ -129,9 +135,25 @@ export default function HospitalProfile() {
 
 
     return (
+        loading ? (
+            <HospitalLayout title="Profile" page="PROFILE">
+                <HospitalLoadingSkeleton showHero cardCount={3} listRows={4} />
+            </HospitalLayout>
+        ) : (
         <HospitalLayout title="Profile" page="PROFILE">
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {error && (
+                    <div style={{
+                        background: '#0F0F17',
+                        border: '1px solid rgba(248,113,113,0.28)',
+                        borderRadius: 14,
+                        padding: 14,
+                        color: '#f87171'
+                    }}>
+                        {error}
+                    </div>
+                )}
 
                 {/* Header */}
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
@@ -235,5 +257,6 @@ export default function HospitalProfile() {
             </div>
 
         </HospitalLayout>
+        )
     );
 }

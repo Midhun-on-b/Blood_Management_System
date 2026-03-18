@@ -4,6 +4,7 @@ import { Search, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import HospitalLayout from '../../components/hospital/HospitalLayout';
 import StatusBadge from '../../components/hospital/StatusBadge';
+import HospitalLoadingSkeleton from '../../components/hospital/HospitalLoadingSkeleton';
 
 function fmt(d) { return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
 
@@ -19,10 +20,31 @@ function ChartTooltip({ active, payload, label }) {
 
 const PAY_TABS = ['All', 'Paid', 'Pending', 'Overdue'];
 
+async function readJsonSafe(res, fallbackMessage) {
+    const raw = await res.text();
+    let data = null;
+
+    if (raw) {
+        try {
+            data = JSON.parse(raw);
+        } catch {
+            throw new Error(`${fallbackMessage} (non-JSON response)`);
+        }
+    }
+
+    if (!res.ok) {
+        throw new Error(data?.message || fallbackMessage);
+    }
+
+    return data;
+}
+
 export default function HospitalPayments() {
 
     const [payments, setPayments] = useState([]);
     const [chartData, setChartData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
     const [filter, setFilter] = useState('All');
     const [search, setSearch] = useState('');
@@ -36,10 +58,10 @@ export default function HospitalPayments() {
     useEffect(() => {
 
         fetch("http://localhost:5000/payments")
-            .then(res => res.json())
+            .then(res => readJsonSafe(res, 'Failed to load payments'))
             .then(data => {
 
-                const formatted = data.map(p => ({
+                const formatted = (Array.isArray(data) ? data : []).map(p => ({
                     payment_id: String(p.payment_id),
                     bank_name: p.bank_name,
                     request_id: "REQ-" + p.payment_id,
@@ -72,7 +94,13 @@ export default function HospitalPayments() {
                 });
 
                 setChartData(Object.values(chart));
+                setLoading(false);
 
+            })
+            .catch(err => {
+                console.error(err);
+                setError(err.message || 'Unable to load payments.');
+                setLoading(false);
             });
 
     }, []);
@@ -101,11 +129,30 @@ export default function HospitalPayments() {
 
     });
 
+    if (loading) {
+        return (
+            <HospitalLayout title="Payments" page="PAYMENTS">
+                <HospitalLoadingSkeleton showHero={false} cardCount={4} listRows={5} />
+            </HospitalLayout>
+        );
+    }
+
 
 
     return (
         <HospitalLayout title="Payments" page="PAYMENTS">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {error && (
+                    <div style={{
+                        background: '#0F0F17',
+                        border: '1px solid rgba(248,113,113,0.28)',
+                        borderRadius: 14,
+                        padding: 14,
+                        color: '#f87171'
+                    }}>
+                        {error}
+                    </div>
+                )}
 
                 {/* Stats */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>

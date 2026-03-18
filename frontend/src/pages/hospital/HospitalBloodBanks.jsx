@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, Phone } from 'lucide-react';
 import HospitalLayout from '../../components/hospital/HospitalLayout';
 import BloodGroupBadge from '../../components/hospital/BloodGroupBadge';
+import HospitalLoadingSkeleton from '../../components/hospital/HospitalLoadingSkeleton';
 
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 const DISTRICTS = ['All Districts', 'Thiruvananthapuram', 'Ernakulam', 'Kozhikode', 'Thrissur', 'Kannur'];
@@ -17,6 +18,8 @@ export default function HospitalBloodBanks() {
   const [district, setDistrict] = useState('All Districts');
   const [bloodType, setBloodType] = useState('');
   const [openOnly, setOpenOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // FETCH BANKS FROM BACKEND
   useEffect(() => {
@@ -46,9 +49,14 @@ export default function HospitalBloodBanks() {
         }))
 
         setBanks(formatted)
+        setLoading(false);
 
       })
-      .catch(err => console.error("Fetch error:", err))
+      .catch(err => {
+        console.error("Fetch error:", err);
+        setError('Unable to load blood banks.');
+        setLoading(false);
+      })
 
   }, [])
 
@@ -78,6 +86,14 @@ export default function HospitalBloodBanks() {
         ? '#f59e0b'
         : '#D90025'
 
+  }
+
+  if (loading) {
+    return (
+      <HospitalLayout title="Blood Banks" page="BLOOD-BANKS">
+        <HospitalLoadingSkeleton showHero={false} showFilters cardCount={4} listRows={0} />
+      </HospitalLayout>
+    );
   }
 
   return (
@@ -147,7 +163,33 @@ export default function HospitalBloodBanks() {
             )}
           </select>
 
+          <button
+            onClick={() => setOpenOnly(v => !v)}
+            style={{
+              background: openOnly ? 'rgba(217,0,37,0.12)' : '#0F0F17',
+              border: `1px solid ${openOnly ? 'rgba(217,0,37,0.3)' : 'rgba(255,255,255,0.1)'}`,
+              borderRadius: 10,
+              padding: '11px 12px',
+              color: openOnly ? '#fff' : 'var(--text2)',
+              cursor: 'pointer'
+            }}
+          >
+            Open Only
+          </button>
+
         </motion.div>
+
+        {error && (
+          <div style={{
+            background: '#0F0F17',
+            border: '1px solid rgba(248,113,113,0.28)',
+            borderRadius: 14,
+            padding: 14,
+            color: '#f87171'
+          }}>
+            {error}
+          </div>
+        )}
 
         {/* BANK LIST */}
         <div>
