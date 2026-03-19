@@ -36,9 +36,11 @@ router.post('/', (req, res) => {
 
 
 // =============================
-// GET SIMPLE BLOOD REQUESTS
+// GET SIMPLE BLOOD REQUESTS (FILTERED)
 // =============================
-router.get('/simple', (req, res) => {
+router.get('/simple/:hospitalId', (req, res) => {
+
+    const hospitalId = req.params.hospitalId;
 
     const query = `
         SELECT 
@@ -57,10 +59,11 @@ router.get('/simple', (req, res) => {
             ON br.hospital_id = h.hospital_id
         JOIN patient p 
             ON br.patient_id = p.patient_id
+        WHERE br.hospital_id = ?
         ORDER BY br.request_date DESC
     `;
 
-    db.query(query, (err, results) => {
+    db.query(query, [hospitalId], (err, results) => {
 
         if (err) {
             console.error("GET SIMPLE ERROR:", err);
@@ -73,9 +76,11 @@ router.get('/simple', (req, res) => {
 
 
 // =============================
-// GET DETAILED BLOOD REQUESTS
+// GET DETAILED BLOOD REQUESTS (FILTERED)
 // =============================
-router.get('/detailed', (req, res) => {
+router.get('/detailed/:hospitalId', (req, res) => {
+
+    const hospitalId = req.params.hospitalId;
 
     const query = `
         SELECT 
@@ -111,10 +116,12 @@ router.get('/detailed', (req, res) => {
         LEFT JOIN blood_bank bb 
             ON br.bank_id = bb.bank_id
 
+        WHERE br.hospital_id = ?
+
         ORDER BY br.request_date DESC
     `;
 
-    db.query(query, (err, results) => {
+    db.query(query, [hospitalId], (err, results) => {
 
         if (err) {
             console.error("GET DETAILED ERROR:", err);

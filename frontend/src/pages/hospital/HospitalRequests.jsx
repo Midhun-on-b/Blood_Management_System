@@ -124,11 +124,13 @@ export default function HospitalRequests() {
     const [bloodGroup, setBloodGroup] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const fetchRequests = async () => {
-        const res = await fetch('http://localhost:5000/blood-requests');
-        const data = await res.json();
-        setRequests(Array.isArray(data) ? data : []);
-    };
+   const hospitalId = 1; // KIMS
+
+const fetchRequests = async () => {
+    const res = await fetch(`http://localhost:5000/blood-requests/detailed/${hospitalId}`);
+    const data = await res.json();
+    setRequests(Array.isArray(data) ? data : []);
+};
 
     const fetchPatients = async () => {
         const res = await fetch('http://localhost:5000/patients');
@@ -277,9 +279,9 @@ export default function HospitalRequests() {
                                 }}
                             >
                                 <div style={{ color: '#fff', fontFamily: 'var(--font-mono)', fontSize: 11 }}>REQ-{req.request_id}</div>
-                                <div>HSP-{req.hospital_id}</div>
-                                <div>PAT-{req.patient_id}</div>
-                                <div>BNK-{req.bank_id}</div>
+                                <div>{req.hospital_name}</div>
+                                <div>{req.patient_name}</div>
+                                <div>{req.bank_name}</div>
                                 <div>{req.units_required} units</div>
                                 <StatusBadge status={req.status} />
                                 <div>{fmt(req.request_date)}</div>

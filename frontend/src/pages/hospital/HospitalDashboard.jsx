@@ -105,7 +105,7 @@ export default function HospitalDashboard() {
                 const [statsRes, patientsRes, requestsRes, paymentsRes, banksRes] = await Promise.all([
                     fetch("http://localhost:5000/hospital-dashboard/1/stats"),
                     fetch("http://localhost:5000/patients"),
-                    fetch("http://localhost:5000/blood-requests"),
+                    fetch("http://localhost:5000/blood-requests/detailed"),
                     fetch("http://localhost:5000/payments"),
                     fetch("http://localhost:5000/blood-banks")
                 ]);

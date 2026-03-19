@@ -49,12 +49,23 @@ const handleSubmit = async () => {
 
 setLoading(true);
 
+
 try{
 
-const res = await fetch("http://localhost:5000/patients",{
-method:"POST",
-headers:{ "Content-Type":"application/json" },
-body:JSON.stringify({ name, age, gender, blood_group:bg, ward, admitted_on:date })
+
+
+const res = await fetch("http://localhost:5000/patients", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ 
+        hospital_id: 1,
+        name,
+        age,
+        gender,
+        blood_group: bg,
+        ward,
+        admitted_on: date
+    })
 });
 
 if(res.ok){
@@ -164,7 +175,9 @@ useEffect(()=>{ fetchPatients(); },[]);
 
 const fetchPatients = async () => {
 try{
-const res = await fetch("http://localhost:5000/patients");
+const hospitalId = 1;
+
+const res = await fetch(`http://localhost:5000/patients/${hospitalId}`);
 const data = await res.json();
 setPatients(data);
 setLoading(false);

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../config/db");
 
+
 // =============================
 // GET ALL PATIENTS
 // =============================
@@ -16,6 +17,36 @@ router.get("/", (req, res) => {
 
     if (err) {
       console.error("GET PATIENT ERROR:", err);
+      return res.status(500).json({
+        message: "Server Error"
+      });
+    }
+
+    res.json(results);
+
+  });
+
+});
+
+
+// =============================
+// GET PATIENTS BY HOSPITAL
+// =============================
+router.get("/:hospitalId", (req, res) => {
+
+  const hospitalId = req.params.hospitalId;
+
+  const query = `
+    SELECT *
+    FROM patient
+    WHERE hospital_id = ?
+    ORDER BY patient_id DESC
+  `;
+
+  db.query(query, [hospitalId], (err, results) => {
+
+    if (err) {
+      console.error("GET PATIENT BY HOSPITAL ERROR:", err);
       return res.status(500).json({
         message: "Server Error"
       });
@@ -61,5 +92,6 @@ router.post("/", (req, res) => {
   );
 
 });
+
 
 module.exports = router;
