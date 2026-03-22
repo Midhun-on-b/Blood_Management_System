@@ -109,5 +109,74 @@ router.post("/", (req, res) => {
 
 });
 
+// =============================
+// UPDATE PATIENT
+// =============================
+router.put("/:id", (req, res) => {
+  if (!["hospital", "admin"].includes(req.auth.role)) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const patientId = req.params.id;
+  const { name, age, gender, blood_group } = req.body;
+
+  // Check ownership
+  db.query("SELECT hospital_id FROM patient WHERE patient_id = ?", [patientId], (err, patient) => {
+    if (err) return res.status(500).json({ message: "Server Error" });
+    if (!patient.length) return res.status(404).json({ message: "Patient not found" });
+
+    if (req.auth.role === "hospital" && Number(req.auth.entityId) !== Number(patient[0].hospital_id)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const query = `
+      UPDATE patient
+      SET name = ?, age = ?, gender = ?, blood_group = ?
+      WHERE patient_id = ?
+    `;
+
+    db.query(query, [name, age, gender, blood_group, patientId], (err) => {
+      if (err) {
+        console.error("UPDATE PATIENT ERROR:", err);
+        return res.status(500).json({ message: "Server Error" });
+      }
+
+      res.json({ message: "Patient updated successfully" });
+    });
+  });
+});
+
+// =============================
+// DELETE PATIENT
+// =============================
+router.delete("/:id", (req, res) => {
+  if (!["hospital", "admin"].includes(req.auth.role)) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const patientId = req.params.id;
+
+  // Check ownership
+  db.query("SELECT hospital_id FROM patient WHERE patient_id = ?", [patientId], (err, patient) => {
+    if (err) return res.status(500).json({ message: "Server Error" });
+    if (!patient.length) return res.status(404).json({ message: "Patient not found" });
+
+    if (req.auth.role === "hospital" && Number(req.auth.entityId) !== Number(patient[0].hospital_id)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const query = "DELETE FROM patient WHERE patient_id = ?";
+
+    db.query(query, [patientId], (err) => {
+      if (err) {
+        console.error("DELETE PATIENT ERROR:", err);
+        return res.status(500).json({ message: "Server Error" });
+      }
+
+      res.json({ message: "Patient deleted successfully" });
+    });
+  });
+});
+
 
 module.exports = router;

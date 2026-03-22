@@ -89,6 +89,7 @@ export default function Login() {
             const user = await signIn({
                 email,
                 password,
+                role: selectedRole.id,
             });
             setResolvedRole(user.role);
             setSuccess(true);

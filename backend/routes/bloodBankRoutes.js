@@ -71,27 +71,61 @@ router.get("/:id/stock", ...protectBank, (req, res) => {
 router.put("/:id/stock/:group", ...protectBank, (req, res) => {
   const { available_units, action } = req.body;
   // action: 'add' or 'remove'
+  if (!available_units || available_units <= 0) {
+    return res.status(400).json({ message: "Valid units required" });
+  }
+
   const operator = action === "remove" ? "-" : "+";
+  const newUnits = action === "remove" ? -available_units : available_units;
+
+  // Check current stock and validate
   db.query(
-    `UPDATE blood_stock 
-     SET available_units = available_units ${operator} ?, last_updated = CURDATE()
-     WHERE bank_id = ? AND blood_group = ?`,
-    [available_units, req.params.id, req.params.group],
-    (err, result) => {
+    "SELECT available_units FROM blood_stock WHERE bank_id = ? AND blood_group = ?",
+    [req.params.id, req.params.group],
+    (err, current) => {
       if (err) return res.status(500).json({ message: "DB error", error: err });
-      if (result.affectedRows === 0) {
-        // Insert if not exists
-        db.query(
-          "INSERT INTO blood_stock (bank_id, blood_group, available_units, last_updated) VALUES (?,?,?,CURDATE())",
-          [req.params.id, req.params.group, available_units],
-          (err2) => {
-            if (err2) return res.status(500).json({ message: "DB error", error: err2 });
-            res.json({ message: "Stock created and updated" });
-          }
-        );
-      } else {
-        res.json({ message: "Stock updated successfully" });
+
+      const currentUnits = current.length ? current[0].available_units : 0;
+      const projectedUnits = currentUnits + newUnits;
+
+      if (projectedUnits < 0) {
+        return res.status(400).json({ message: "Cannot remove more units than available" });
       }
+
+      if (projectedUnits > 1000) {
+        return res.status(400).json({ message: "Maximum capacity exceeded (1000 units)" });
+      }
+
+      if (projectedUnits < 10) {
+        // Could add alert, but for now allow
+      }
+
+      db.query(
+        `UPDATE blood_stock 
+         SET available_units = available_units ${operator} ?, last_updated = CURDATE()
+         WHERE bank_id = ? AND blood_group = ?`,
+        [available_units, req.params.id, req.params.group],
+        (err, result) => {
+          if (err) return res.status(500).json({ message: "DB error", error: err });
+          if (result.affectedRows === 0) {
+            // Insert if not exists
+            if (action === "add") {
+              db.query(
+                "INSERT INTO blood_stock (bank_id, blood_group, available_units, last_updated) VALUES (?,?,?,CURDATE())",
+                [req.params.id, req.params.group, available_units],
+                (err2) => {
+                  if (err2) return res.status(500).json({ message: "DB error", error: err2 });
+                  res.json({ message: "Stock created and updated" });
+                }
+              );
+            } else {
+              return res.status(400).json({ message: "Cannot remove from non-existent stock" });
+            }
+          } else {
+            res.json({ message: "Stock updated successfully" });
+          }
+        }
+      );
     }
   );
 });
@@ -184,13 +218,46 @@ router.get("/:id/donors", ...protectBank, (req, res) => {
 
 router.post("/:id/donors", ...protectBank, (req, res) => {
   const { name, age, gender, phone_no, blood_group, city } = req.body;
+
+  // Validation
+  if (!name || !age || !gender || !phone_no || !blood_group || !city) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  if (age < 18 || age > 65) {
+    return res.status(400).json({ message: "Age must be between 18 and 65" });
+  }
+
+  const validBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  if (!validBloodGroups.includes(blood_group)) {
+    return res.status(400).json({ message: "Invalid blood group" });
+  }
+
+  // Check last donation interval (if donor exists with same details)
   db.query(
-    `INSERT INTO donor (name, age, gender, phone_no, blood_group, city, status)
-     VALUES (?, ?, ?, ?, ?, ?, 'active')`,
-    [name, age, gender, phone_no, blood_group, city],
-    (err, result) => {
+    "SELECT last_donation_date FROM donor WHERE phone_no = ? ORDER BY donor_id DESC LIMIT 1",
+    [phone_no],
+    (err, existing) => {
       if (err) return res.status(500).json({ message: "DB error", error: err });
-      res.status(201).json({ message: "Donor registered", donor_id: result.insertId });
+
+      if (existing.length) {
+        const lastDate = new Date(existing[0].last_donation_date);
+        const now = new Date();
+        const diffDays = (now - lastDate) / (1000 * 60 * 60 * 24);
+        if (diffDays < 56) {
+          return res.status(400).json({ message: "Minimum 8 weeks required since last donation" });
+        }
+      }
+
+      db.query(
+        `INSERT INTO donor (name, age, gender, phone_no, blood_group, city, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'active')`,
+        [name, age, gender, phone_no, blood_group, city],
+        (err, result) => {
+          if (err) return res.status(500).json({ message: "DB error", error: err });
+          res.status(201).json({ message: "Donor registered", donor_id: result.insertId });
+        }
+      );
     }
   );
 });
@@ -219,21 +286,57 @@ router.get("/:id/health-checks", ...protectBank, (req, res) => {
 
 router.post("/:id/health-checks", ...protectBank, (req, res) => {
   const { donor_id, check_date, weight, blood_pressure, hemoglobin, eligibility_status } = req.body;
-  db.query(
-    `INSERT INTO health_check (donor_id, check_date, weight, blood_pressure, hemoglobin, eligibility_status)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [donor_id, check_date, weight, blood_pressure, hemoglobin, eligibility_status],
-    (err, result) => {
-      if (err) return res.status(500).json({ message: "DB error", error: err });
-      // Also update donor status
-      db.query(
-        "UPDATE donor SET status = ? WHERE donor_id = ?",
-        [eligibility_status === "Eligible" ? "active" : "inactive", donor_id],
-        () => {}
-      );
-      res.status(201).json({ message: "Health check recorded", check_id: result.insertId });
+
+  // Validation
+  if (!donor_id || !check_date || !weight || !blood_pressure || !hemoglobin) {
+    return res.status(400).json({ message: "All health metrics are required" });
+  }
+
+  if (weight < 45) {
+    return res.status(400).json({ message: "Weight must be at least 45kg" });
+  }
+
+  const bpParts = blood_pressure.split('/');
+  if (bpParts.length !== 2) {
+    return res.status(400).json({ message: "Invalid blood pressure format (systolic/diastolic)" });
+  }
+  const systolic = parseInt(bpParts[0]);
+  const diastolic = parseInt(bpParts[1]);
+  if (systolic >= 140 || diastolic >= 90) {
+    return res.status(400).json({ message: "Blood pressure too high" });
+  }
+
+  // Get donor gender for hemoglobin check
+  db.query("SELECT gender FROM donor WHERE donor_id = ?", [donor_id], (err, donor) => {
+    if (err) return res.status(500).json({ message: "DB error", error: err });
+    if (!donor.length) return res.status(404).json({ message: "Donor not found" });
+
+    const gender = donor[0].gender;
+    const minHemoglobin = gender === 'Female' ? 12.5 : 13.5;
+    if (hemoglobin < minHemoglobin) {
+      return res.status(400).json({ message: `Hemoglobin too low (min ${minHemoglobin} g/dL)` });
     }
-  );
+
+    // Determine eligibility
+    const isEligible = weight >= 45 && systolic < 140 && diastolic < 90 && hemoglobin >= minHemoglobin;
+    const finalStatus = isEligible ? 'Eligible' : 'Not Eligible';
+
+    db.query(
+      `INSERT INTO health_check (donor_id, check_date, weight, blood_pressure, hemoglobin, eligibility_status)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [donor_id, check_date, weight, blood_pressure, hemoglobin, finalStatus],
+      (err, result) => {
+        if (err) return res.status(500).json({ message: "DB error", error: err });
+        // Update donor status
+        db.query(
+          "UPDATE donor SET status = ? WHERE donor_id = ?",
+          [finalStatus === "Eligible" ? "active" : "inactive", donor_id],
+          () => {}
+        );
+        res.status(201).json({ message: "Health check recorded", check_id: result.insertId, eligibility: finalStatus });
+      }
+    );
+  });
 });
 
 // ─────────────────────────────────────────────
@@ -359,58 +462,72 @@ router.post("/:id/issues", ...protectBank, (req, res) => {
   const { request_id, issue_date, units_issued } = req.body;
   const bankId = req.params.id;
 
-  // 1. Insert blood issue
+  // Check stock availability first
   db.query(
-    "INSERT INTO blood_issue (request_id, issue_date, units_issued) VALUES (?, ?, ?)",
-    [request_id, issue_date, units_issued],
-    (err, result) => {
-      if (err) return res.status(500).json({ message: "DB error", error: err });
-      const issueId = result.insertId;
+    `SELECT p.blood_group FROM blood_request br
+     JOIN patient p ON br.patient_id = p.patient_id
+     WHERE br.request_id = ?`,
+    [request_id],
+    (err2, rows) => {
+      if (err2) return res.status(500).json({ message: "DB error", error: err2 });
+      if (!rows.length) return res.status(404).json({ message: "Request not found" });
+      const bg = rows[0].blood_group;
 
-      // 2. Update request status to Fulfilled
       db.query(
-        "UPDATE blood_request SET status = 'Fulfilled' WHERE request_id = ?",
-        [request_id],
-        () => {}
-      );
-
-      // 3. Deduct from blood stock
-      db.query(
-        `SELECT p.blood_group FROM blood_request br
-         JOIN patient p ON br.patient_id = p.patient_id
-         WHERE br.request_id = ?`,
-        [request_id],
-        (err2, rows) => {
-          if (!err2 && rows.length) {
-            db.query(
-              `UPDATE blood_stock 
-               SET available_units = GREATEST(0, available_units - ?), last_updated = CURDATE()
-               WHERE bank_id = ? AND blood_group = ?`,
-              [units_issued, bankId, rows[0].blood_group],
-              () => {}
-            );
+        "SELECT available_units FROM blood_stock WHERE bank_id = ? AND blood_group = ?",
+        [bankId, bg],
+        (err3, stock) => {
+          if (err3) return res.status(500).json({ message: "DB error", error: err3 });
+          if (!stock.length || stock[0].available_units < units_issued) {
+            return res.status(400).json({ message: "Insufficient stock available" });
           }
+
+          // Proceed with issue
+          db.query(
+            "INSERT INTO blood_issue (request_id, issue_date, units_issued) VALUES (?, ?, ?)",
+            [request_id, issue_date, units_issued],
+            (err, result) => {
+              if (err) return res.status(500).json({ message: "DB error", error: err });
+              const issueId = result.insertId;
+
+              // Update request status to Fulfilled
+              db.query(
+                "UPDATE blood_request SET status = 'Fulfilled' WHERE request_id = ?",
+                [request_id],
+                () => {}
+              );
+
+              // Deduct from blood stock
+              db.query(
+                `UPDATE blood_stock 
+                 SET available_units = available_units - ?, last_updated = CURDATE()
+                 WHERE bank_id = ? AND blood_group = ?`,
+                [units_issued, bankId, bg],
+                () => {}
+              );
+
+              // Auto-create payment record
+              db.query(
+                `SELECT br.hospital_id FROM blood_request br WHERE br.request_id = ?`,
+                [request_id],
+                (err4, reqs) => {
+                  if (!err4 && reqs.length) {
+                    const amount = units_issued * 500; // ₹500 per unit
+                    db.query(
+                      `INSERT INTO payment (request_id, hospital_id, bank_id, payment_date, amount, payment_status)
+                       VALUES (?, ?, ?, ?, ?, 'Pending')`,
+                      [request_id, reqs[0].hospital_id, bankId, issue_date, amount],
+                      () => {}
+                    );
+                  }
+                }
+              );
+
+              res.status(201).json({ message: "Blood issued successfully", issue_id: issueId });
+            }
+          );
         }
       );
-
-      // 4. Auto-create payment record
-      db.query(
-        `SELECT br.hospital_id FROM blood_request br WHERE br.request_id = ?`,
-        [request_id],
-        (err3, reqs) => {
-          if (!err3 && reqs.length) {
-            const amount = units_issued * 500; // ₹500 per unit
-            db.query(
-              `INSERT INTO payment (request_id, hospital_id, bank_id, payment_date, amount, payment_status)
-               VALUES (?, ?, ?, ?, ?, 'Pending')`,
-              [request_id, reqs[0].hospital_id, bankId, issue_date, amount],
-              () => {}
-            );
-          }
-        }
-      );
-
-      res.status(201).json({ message: "Blood issued successfully", issue_id: issueId });
     }
   );
 });

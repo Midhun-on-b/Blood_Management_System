@@ -27,7 +27,7 @@ useEffect(() => {
 }, []);
 const fetchBanks = async () => {
     try {
-        const res = await apiFetch("/api/admin/inventory")
+        const res = await apiFetch("/admin/inventory")
         const data = await res.json();
         if (!Array.isArray(data)) {
             setBanks([]);
@@ -108,7 +108,7 @@ setLoading(false);
 
 const fetchDistricts = async () => {
     try {
-        const res = await apiFetch("/api/admin/inventory");
+        const res = await apiFetch("/admin/inventory");
         const data = await res.json();
         if (!Array.isArray(data)) {
             setDistrictData([]);

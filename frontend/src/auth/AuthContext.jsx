@@ -70,6 +70,10 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signIn = async ({ email, password, role }) => {
+    if (!role) {
+      throw new Error("Role is required for login");
+    }
+
     const res = await apiFetch("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password, role }),

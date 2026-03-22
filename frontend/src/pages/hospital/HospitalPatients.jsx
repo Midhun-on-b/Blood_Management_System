@@ -161,6 +161,170 @@ style={{flex:2,background:'var(--red)',border:'none',borderRadius:10,padding:'12
 );
 }
 
+function EditPatientModal({ patient, onClose, refreshPatients }){
+
+const [name,setName]=useState(patient?.name || '');
+const [age,setAge]=useState(patient?.age || '');
+const [gender,setGender]=useState(patient?.gender || 'Male');
+const [bg,setBg]=useState(patient?.blood_group || '');
+const [ward,setWard]=useState(patient?.ward || 'Emergency');
+const [date,setDate]=useState(patient?.admitted_on ? new Date(patient.admitted_on).toISOString().split('T')[0] : '');
+const [loading,setLoading]=useState(false);
+const [done,setDone]=useState(false);
+
+const iS={width:'100%',background:'#0A0A12',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,padding:'11px 14px',fontFamily:'var(--font-body)',fontSize:14,color:'#fff',outline:'none',boxSizing:'border-box'};
+const lS={display:'block',fontFamily:'var(--font-mono)',fontSize:9,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:8,marginTop:14};
+
+const handleSubmit = async () => {
+setLoading(true);
+try{
+const res = await apiFetch(`/patients/${patient.patient_id}`, {
+    method: "PUT",
+    body: JSON.stringify({ 
+        name,
+        age,
+        gender,
+        blood_group: bg,
+        ward,
+        admitted_on: date
+    })
+});
+if(res.ok){
+setDone(true);
+refreshPatients();
+}
+}catch(err){
+console.error("Error updating patient:",err);
+}
+setLoading(false);
+};
+
+return(
+<motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',backdropFilter:'blur(6px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}
+onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+
+<motion.div initial={{scale:0.93,opacity:0,y:20}} animate={{scale:1,opacity:1,y:0}} exit={{scale:0.93,opacity:0}}
+style={{background:'#0F0F17',border:'1px solid rgba(217,0,37,0.2)',borderRadius:20,padding:40,width:'100%',maxWidth:460,position:'relative'}}>
+
+<button onClick={onClose} style={{position:'absolute',top:20,right:20,background:'none',border:'none',cursor:'pointer'}}><X size={18} color="var(--text3)"/></button>
+
+{done ? (
+ <div style={{textAlign:'center',padding:'32px 0'}}>
+ <motion.div initial={{scale:0}} animate={{scale:1}} transition={{type:'spring',delay:0.1}}
+ style={{width:64,height:64,borderRadius:'50%',background:'rgba(34,197,94,0.1)',border:'1px solid rgba(34,197,94,0.3)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px'}}>
+ <Check size={28} color="#22c55e"/>
+ </motion.div>
+ <div style={{fontFamily:'var(--font-sub)',fontWeight:800,fontSize:22,color:'#fff',marginBottom:8}}>Patient Updated!</div>
+<button onClick={onClose} style={{background:'none',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'10px 28px',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:14,color:'var(--text2)'}}>Close</button>
+ </div>
+ ) : (
+<>
+ <div style={{fontFamily:'var(--font-sub)',fontWeight:700,fontSize:24,color:'#fff',marginBottom:6}}>Edit Patient</div>
+
+<label style={lS}>PATIENT NAME</label>
+<input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name" style={iS}/>
+
+ <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+ <div>
+ <label style={lS}>AGE</label>
+ <input type="number" value={age} onChange={e=>setAge(e.target.value)} style={iS}/>
+ </div>
+ <div>
+ <label style={lS}>GENDER</label>
+ <select value={gender} onChange={e=>setGender(e.target.value)} style={{...iS,cursor:'pointer'}}>
+ {['Male','Female','Other'].map(g=> <option key={g}>{g}</option>)}
+ </select>
+ </div>
+ </div>
+
+<label style={lS}>BLOOD GROUP</label>
+ <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:4}}>
+ {BLOOD_TYPES.map(b=>(
+ <button key={b} onClick={()=>setBg(b)} style={{padding:'5px 10px',borderRadius:8,cursor:'pointer',background:bg===b?'var(--red)':'rgba(255,255,255,0.05)',border:`1px solid ${bg===b?'var(--red)':'rgba(255,255,255,0.1)'}`,fontFamily:'var(--font-sub)',fontWeight:700,fontSize:11,color:'#fff'}}>
+ {b}
+ </button>
+ ))}
+ </div>
+
+<label style={lS}>WARD</label>
+<select value={ward} onChange={e=>setWard(e.target.value)} style={{...iS}}>
+{ALL_WARDS.map(w=><option key={w}>{w}</option>)} </select>
+
+<label style={lS}>ADMITTED ON</label>
+<input type="date" value={date} onChange={e=>setDate(e.target.value)} style={iS}/>
+
+ <div style={{display:'flex',gap:12,marginTop:24}}>
+ <button onClick={onClose} style={{flex:1,background:'none',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,padding:'12px 0',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:14,color:'var(--text2)'}}>Cancel</button>
+<button onClick={handleSubmit} disabled={loading}
+style={{flex:2,background:'var(--red)',border:'none',borderRadius:10,padding:'12px 0',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:14,fontWeight:600,color:'#fff'}}>
+{loading?'Updating...':'Update Patient →'} </button>
+ </div>
+</>
+)}
+</motion.div>
+</motion.div>
+);
+}
+
+function DeletePatientModal({ patient, onClose, refreshPatients }){
+
+const [loading,setLoading]=useState(false);
+const [done,setDone]=useState(false);
+
+const handleDelete = async () => {
+setLoading(true);
+try{
+const res = await apiFetch(`/patients/${patient.patient_id}`, {
+    method: "DELETE"
+});
+if(res.ok){
+setDone(true);
+refreshPatients();
+}
+}catch(err){
+console.error("Error deleting patient:",err);
+}
+setLoading(false);
+};
+
+return(
+<motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',backdropFilter:'blur(6px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}
+onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+
+<motion.div initial={{scale:0.93,opacity:0,y:20}} animate={{scale:1,opacity:1,y:0}} exit={{scale:0.93,opacity:0}}
+style={{background:'#0F0F17',border:'1px solid rgba(217,0,37,0.2)',borderRadius:20,padding:40,width:'100%',maxWidth:400,position:'relative'}}>
+
+{done ? (
+ <div style={{textAlign:'center',padding:'32px 0'}}>
+ <motion.div initial={{scale:0}} animate={{scale:1}} transition={{type:'spring',delay:0.1}}
+ style={{width:64,height:64,borderRadius:'50%',background:'rgba(34,197,94,0.1)',border:'1px solid rgba(34,197,94,0.3)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px'}}>
+ <Check size={28} color="#22c55e"/>
+ </motion.div>
+ <div style={{fontFamily:'var(--font-sub)',fontWeight:800,fontSize:22,color:'#fff',marginBottom:8}}>Patient Deleted!</div>
+<button onClick={onClose} style={{background:'none',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,padding:'10px 28px',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:14,color:'var(--text2)'}}>Close</button>
+ </div>
+ ) : (
+<>
+ <div style={{fontFamily:'var(--font-sub)',fontWeight:700,fontSize:24,color:'#fff',marginBottom:6}}>Delete Patient</div>
+ <div style={{fontFamily:'var(--font-body)',fontSize:14,color:'var(--text2)',marginBottom:24}}>
+ Are you sure you want to delete <strong>{patient?.name}</strong>? This action cannot be undone.
+ </div>
+
+ <div style={{display:'flex',gap:12}}>
+ <button onClick={onClose} style={{flex:1,background:'none',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,padding:'12px 0',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:14,color:'var(--text2)'}}>Cancel</button>
+<button onClick={handleDelete} disabled={loading}
+style={{flex:1,background:'rgba(217,0,37,0.8)',border:'none',borderRadius:10,padding:'12px 0',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:14,fontWeight:600,color:'#fff'}}>
+{loading?'Deleting...':'Delete'} </button>
+ </div>
+</>
+)}
+</motion.div>
+</motion.div>
+);
+}
+
 export default function HospitalPatients(){
 const { user } = useAuth();
 
@@ -169,6 +333,8 @@ const [ward,setWard]=useState('All');
 const [status,setStatus]=useState('All');
 const [search,setSearch]=useState('');
 const [showModal,setShowModal]=useState(false);
+const [editingPatient,setEditingPatient]=useState(null);
+const [deletingPatient,setDeletingPatient]=useState(null);
 const [patients,setPatients]=useState([]);
 const [loading,setLoading]=useState(true);
 const [error,setError]=useState('');
@@ -211,6 +377,8 @@ return( <HospitalLayout title="Patients" page="PATIENTS">
 
  <AnimatePresence>
  {showModal && <AddPatientModal hospitalId={user?.entity_id} onClose={()=>setShowModal(false)} refreshPatients={fetchPatients}/>}
+ {editingPatient && <EditPatientModal patient={editingPatient} onClose={()=>setEditingPatient(null)} refreshPatients={fetchPatients}/>}
+ {deletingPatient && <DeletePatientModal patient={deletingPatient} onClose={()=>setDeletingPatient(null)} refreshPatients={fetchPatients}/>}
  </AnimatePresence>
 
  <div style={{display:'flex',flexDirection:'column',gap:24}}>
@@ -270,6 +438,15 @@ return( <HospitalLayout title="Patients" page="PATIENTS">
  </div>
 
  <div style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--text3)'}}>Admitted: {fmt(p.admitted_on)}</div>
+
+ <div style={{display:'flex',gap:8,marginTop:16}}>
+ <button onClick={()=>setEditingPatient(p)} style={{flex:1,background:'rgba(59,130,246,0.1)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:8,padding:'8px 12px',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:12,color:'#3b82f6',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+ <span>✏️</span> Edit
+ </button>
+ <button onClick={()=>setDeletingPatient(p)} style={{flex:1,background:'rgba(217,0,37,0.1)',border:'1px solid rgba(217,0,37,0.3)',borderRadius:8,padding:'8px 12px',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:12,color:'var(--red)',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+ <span>🗑️</span> Delete
+ </button>
+ </div>
  </motion.div>
  );
  })}

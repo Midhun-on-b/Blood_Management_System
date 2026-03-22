@@ -127,6 +127,7 @@ export default function HospitalRequests() {
     const [units, setUnits] = useState(1);
     const [bloodGroup, setBloodGroup] = useState('');
     const [loading, setLoading] = useState(false);
+    const [expandedRequest, setExpandedRequest] = useState(null);
 
    const hospitalId = user?.entity_id;
 
@@ -271,25 +272,74 @@ const fetchRequests = async () => {
                         <div style={{ color: 'var(--text3)' }}>No requests found.</div>
                     ) : (
                         requests.map((req, i) => (
-                            <div
-                                key={req.request_id}
-                                style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '120px 90px 90px 90px 110px 110px 1fr',
-                                    gap: 10,
-                                    alignItems: 'center',
-                                    padding: '12px 0',
-                                    borderBottom: i < requests.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                                    color: 'var(--text2)'
-                                }}
-                            >
-                                <div style={{ color: '#fff', fontFamily: 'var(--font-mono)', fontSize: 11 }}>REQ-{req.request_id}</div>
-                                <div>{req.hospital_name}</div>
-                                <div>{req.patient_name}</div>
-                                <div>{req.bank_name}</div>
-                                <div>{req.units_required} units</div>
-                                <StatusBadge status={req.status} />
-                                <div>{fmt(req.request_date)}</div>
+                            <div key={req.request_id}>
+                                <div
+                                    onClick={() => setExpandedRequest(expandedRequest === req.request_id ? null : req.request_id)}
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '120px 90px 90px 90px 110px 110px 1fr',
+                                        gap: 10,
+                                        alignItems: 'center',
+                                        padding: '12px 0',
+                                        borderBottom: i < requests.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                                        color: 'var(--text2)',
+                                        cursor: 'pointer',
+                                        transition: 'background 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.02)'}
+                                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                                >
+                                    <div style={{ color: '#fff', fontFamily: 'var(--font-mono)', fontSize: 11 }}>REQ-{req.request_id}</div>
+                                    <div>{req.hospital_name}</div>
+                                    <div>{req.patient_name}</div>
+                                    <div>{req.bank_name}</div>
+                                    <div>{req.units_required} units</div>
+                                    <StatusBadge status={req.status} />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div>{fmt(req.request_date)}</div>
+                                        <div style={{ transform: expandedRequest === req.request_id ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</div>
+                                    </div>
+                                </div>
+                                
+                                {expandedRequest === req.request_id && (
+                                    <motion.div 
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        style={{ 
+                                            background: 'rgba(255,255,255,0.02)', 
+                                            borderRadius: 8, 
+                                            padding: 16, 
+                                            marginTop: 8,
+                                            marginBottom: 12,
+                                            border: '1px solid rgba(255,255,255,0.05)'
+                                        }}
+                                    >
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                            <div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', marginBottom: 4 }}>PATIENT DETAILS</div>
+                                                <div style={{ color: '#fff', marginBottom: 2 }}>{req.patient_name}</div>
+                                                <div style={{ fontSize: 12, color: 'var(--text2)' }}>Blood Group: {req.blood_group}</div>
+                                                <div style={{ fontSize: 12, color: 'var(--text2)' }}>Ward: {req.ward || 'General'}</div>
+                                            </div>
+                                            <div>
+                                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', marginBottom: 4 }}>BANK DETAILS</div>
+                                                <div style={{ color: '#fff', marginBottom: 2 }}>{req.bank_name}</div>
+                                                <div style={{ fontSize: 12, color: 'var(--text2)' }}>City: {req.bank_city}</div>
+                                                <div style={{ fontSize: 12, color: 'var(--text2)' }}>Priority: {req.priority || 'Normal'}</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', marginBottom: 4 }}>STATUS HISTORY</div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <StatusBadge status={req.status} />
+                                                <span style={{ fontSize: 12, color: 'var(--text2)' }}>
+                                                    Last updated: {fmt(req.request_date)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
                             </div>
                         ))
                     )}

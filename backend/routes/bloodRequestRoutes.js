@@ -237,7 +237,7 @@ router.get("/detailed", (req, res) => {
   });
 });
 
-router.put("/:id/status", async (req, res) => {
+router.put("/:id", async (req, res) => {
   if (!["admin", "hospital", "blood_bank"].includes(req.auth.role)) {
     return res.status(403).json({ message: "Forbidden" });
   }

@@ -391,8 +391,14 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password, role } = req.body || {};
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "email and password are required" });
+    if (!email || !password || !role) {
+      return res.status(400).json({ message: "email, password and role are required" });
+    }
+
+    // Validate role
+    const validRoles = ['admin', 'hospital', 'blood_bank', 'donor'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ message: "Invalid role specified" });
     }
 
     const result = await loginAndIssueSession({

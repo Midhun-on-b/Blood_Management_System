@@ -40,21 +40,64 @@ export default function AdminReports() {
     rejected: requests.filter(r => r.status === "rejected").length,
     totalDonors: donors.length
 };
-    const handleGenerate = () => {
-    console.log("📊 REPORT DATA:", reportData); // 🔥 real data
+    const handleGenerate = async () => {
+        setGenerating(true);
 
-    setGenerating(true);
+        try {
+            let endpoint = '';
+            switch (genModal) {
+                case 0: // NACO Monthly Report
+                case 1: // Kerala Health Dept. Quarterly
+                    endpoint = '/admin/blood-utilization';
+                    break;
+                case 2: // District-wise Stock Analysis
+                    endpoint = '/admin/stock-shortages';
+                    break;
+                case 3: // Donor Activity Report
+                    endpoint = '/admin/donor-retention';
+                    break;
+                case 4: // Hospital Request Analysis
+                    endpoint = '/admin/hospital-demand';
+                    break;
+                case 5: // Revenue & Payment Report
+                    endpoint = '/admin/overdue-payments';
+                    break;
+                case 6: // Wastage Analysis Report
+                    // No specific endpoint, use blood-utilization
+                    endpoint = '/admin/blood-utilization';
+                    break;
+                case 7: // Emergency Response Report
+                    endpoint = '/admin/hospital-demand';
+                    break;
+                case 8: // Annual System Report
+                    endpoint = '/admin/blood-utilization';
+                    break;
+                default:
+                    endpoint = '/admin/dashboard';
+            }
 
-    setTimeout(() => {
-        setGenerating(false);
-        setDone(true);
+            const res = await fetch(`http://localhost:5000${endpoint}`);
+            const data = await res.json();
+            
+            console.log("📊 REPORT DATA:", data); // Real data from API
 
-        setTimeout(() => {
-            setDone(false);
-            setGenModal(null);
-        }, 2000);
-    }, 2000);
-};
+            // Simulate report generation time
+            setTimeout(() => {
+                setGenerating(false);
+                setDone(true);
+
+                setTimeout(() => {
+                    setDone(false);
+                    setGenModal(null);
+                }, 2000);
+            }, 1500);
+
+        } catch (error) {
+            console.error("Error generating report:", error);
+            setGenerating(false);
+            // Could show error toast here
+        }
+    };
 
     return (
         <AdminLayout title="Reports" page="REPORTS">

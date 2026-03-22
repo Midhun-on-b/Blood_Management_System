@@ -22,7 +22,7 @@ export default function AdminRequests() {
 
     // 🔥 FETCH DATA
    useEffect(() => {
-    apiFetch("/api/admin/requests")
+    apiFetch("/admin/requests")
         .then(res => res.json())
         .then(data => {
             if (!Array.isArray(data)) {

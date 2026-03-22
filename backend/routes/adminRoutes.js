@@ -191,4 +191,121 @@ router.get("/inventory", (req, res) => {
 
 });
 
+// =============================
+// BLOOD UTILIZATION BY GROUP
+// =============================
+router.get("/blood-utilization", (req, res) => {
+  const query = `
+    SELECT 
+      blood_group,
+      SUM(available_units) AS total_stock,
+      COUNT(DISTINCT bank_id) AS banks_with_stock,
+      AVG(available_units) AS avg_per_bank
+    FROM blood_stock
+    GROUP BY blood_group
+    ORDER BY total_stock DESC
+  `;
+
+  db.query(query, (err, result) => {
+    if (err) return res.status(500).json(err);
+    res.json(result);
+  });
+});
+
+// =============================
+// DONOR RETENTION RATES
+// =============================
+router.get("/donor-retention", (req, res) => {
+  const query = `
+    SELECT 
+      YEAR(last_donation_date) AS year,
+      COUNT(*) AS total_donors,
+      SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_donors,
+      ROUND((SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) AS retention_rate
+    FROM donor
+    WHERE last_donation_date IS NOT NULL
+    GROUP BY YEAR(last_donation_date)
+    ORDER BY year DESC
+  `;
+
+  db.query(query, (err, result) => {
+    if (err) return res.status(500).json(err);
+    res.json(result);
+  });
+});
+
+// =============================
+// HOSPITAL DEMAND FORECASTING
+// =============================
+router.get("/hospital-demand", (req, res) => {
+  const query = `
+    SELECT 
+      h.hospital_name,
+      COUNT(br.request_id) AS total_requests,
+      SUM(br.units_required) AS total_units_requested,
+      AVG(br.units_required) AS avg_units_per_request,
+      MAX(br.request_date) AS last_request_date
+    FROM hospital h
+    LEFT JOIN blood_request br ON h.hospital_id = br.hospital_id
+    GROUP BY h.hospital_id, h.hospital_name
+    ORDER BY total_requests DESC
+  `;
+
+  db.query(query, (err, result) => {
+    if (err) return res.status(500).json(err);
+    res.json(result);
+  });
+});
+
+// =============================
+// STOCK SHORTAGE INCIDENTS
+// =============================
+router.get("/stock-shortages", (req, res) => {
+  const query = `
+    SELECT 
+      bb.bank_name,
+      bs.blood_group,
+      bs.available_units,
+      CASE 
+        WHEN bs.available_units < 10 THEN 'Critical'
+        WHEN bs.available_units < 50 THEN 'Low'
+        ELSE 'Normal'
+      END AS status
+    FROM blood_stock bs
+    JOIN blood_bank bb ON bs.bank_id = bb.bank_id
+    WHERE bs.available_units < 50
+    ORDER BY bs.available_units ASC
+  `;
+
+  db.query(query, (err, result) => {
+    if (err) return res.status(500).json(err);
+    res.json(result);
+  });
+});
+
+// =============================
+// PAYMENT OVERDUE REPORTS
+// =============================
+router.get("/overdue-payments", (req, res) => {
+  const query = `
+    SELECT 
+      py.payment_id,
+      h.hospital_name,
+      bb.bank_name,
+      py.amount,
+      py.payment_date,
+      DATEDIFF(CURDATE(), py.payment_date) AS days_overdue
+    FROM payment py
+    JOIN hospital h ON py.hospital_id = h.hospital_id
+    JOIN blood_bank bb ON py.bank_id = bb.bank_id
+    WHERE py.payment_status = 'Pending' AND DATEDIFF(CURDATE(), py.payment_date) > 30
+    ORDER BY days_overdue DESC
+  `;
+
+  db.query(query, (err, result) => {
+    if (err) return res.status(500).json(err);
+    res.json(result);
+  });
+});
+
 module.exports = router;
