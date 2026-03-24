@@ -6,57 +6,80 @@ import {
     CreditCard, UserCog, BarChart2, ScrollText, Settings,
     Shield, LogOut,
 } from 'lucide-react';
-import { mockPendingApprovals, mockSystemStats, mockAllDonors, mockAllHospitals, mockAllBloodBanks } from '../../data/adminMockData';
 import { useAuth } from '../../auth/AuthContext';
+import { useState, useEffect } from 'react';
+import { apiFetch } from '../../services/http';
 
-const pendingCount = mockPendingApprovals.filter(a => a.status === 'Pending').length;
 
-const NAV = [
-    {
-        section: 'OVERVIEW', items: [
-            { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { to: '/admin/notifications', icon: Bell, label: 'Notifications', badge: '5 alerts' },
-        ]
-    },
-    {
-        section: 'APPROVALS', items: [
-            { to: '/admin/approvals', icon: Clock, label: 'Pending Approvals', badge: `${pendingCount} PENDING`, badgeColor: 'var(--red)', pulse: true },
-        ]
-    },
-    {
-        section: 'MANAGEMENT', items: [
-            { to: '/admin/donors', icon: Users, label: 'Donors', badge: mockSystemStats.total_donors.toLocaleString(), badgeColor: 'var(--text3)' },
-            { to: '/admin/hospitals', icon: Building2, label: 'Hospitals', badge: String(mockSystemStats.total_hospitals), badgeColor: 'var(--text3)' },
-            { to: '/admin/blood-banks', icon: Droplets, label: 'Blood Banks', badge: String(mockSystemStats.total_blood_banks), badgeColor: 'var(--text3)' },
-        ]
-    },
-    {
-        section: 'BLOOD OPERATIONS', items: [
-            { to: '/admin/inventory', icon: Package, label: 'Inventory' },
-            { to: '/admin/requests', icon: FileText, label: 'Blood Requests' },
-            { to: '/admin/donations', icon: Heart, label: 'Donations' },
-            { to: '/admin/health-checks', icon: HeartPulse, label: 'Health Checks' },
-            { to: '/admin/issues', icon: ArrowUpRight, label: 'Blood Issues' },
-        ]
-    },
-    {
-        section: 'FINANCE', items: [
-            { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
-        ]
-    },
-    {
-        section: 'SYSTEM', items: [
-            { to: '/admin/users', icon: UserCog, label: 'Users & Roles' },
-            { to: '/admin/reports', icon: BarChart2, label: 'Reports' },
-            { to: '/admin/audit', icon: ScrollText, label: 'Audit Logs' },
-            { to: '/admin/settings', icon: Settings, label: 'Settings' },
-        ]
-    },
-];
 
 export default function AdminSidebar() {
     const navigate = useNavigate();
-    const { signOut } = useAuth();
+    const { user, loading, signOut } = useAuth();
+    const [stats, setStats] = useState({
+        total_donors: 0,
+        total_hospitals: 0,
+        total_blood_banks: 0,
+        pending_approvals: 0
+    });
+
+    useEffect(() => {
+        if (!loading && user) {
+            apiFetch('/admin/dashboard')
+                .then(res => res.json())
+                .then(data => setStats(prev => ({ ...prev, ...data })))
+                .catch(() => { });
+
+            apiFetch('/auth/pending-accounts')
+                .then(res => res.json())
+                .then(data => setStats(prev => ({ ...prev, pending_approvals: data.length })))
+                .catch(() => { });
+        }
+    }, [user, loading]);
+
+    const NAV = [
+        {
+            section: 'OVERVIEW', items: [
+                { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+                { to: '/admin/notifications', icon: Bell, label: 'Notifications', badge: '5 alerts' },
+            ]
+        },
+        {
+            section: 'APPROVALS', items: [
+                { to: '/admin/approvals', icon: Clock, label: 'Pending Approvals', badge: `${stats.pending_approvals} PENDING`, badgeColor: 'var(--red)', pulse: true },
+            ]
+        },
+        {
+            section: 'MANAGEMENT', items: [
+                { to: '/admin/donors', icon: Users, label: 'Donors', badge: stats.total_donors.toLocaleString(), badgeColor: 'var(--text3)' },
+                { to: '/admin/hospitals', icon: Building2, label: 'Hospitals', badge: String(stats.total_hospitals), badgeColor: 'var(--text3)' },
+                { to: '/admin/blood-banks', icon: Droplets, label: 'Blood Banks', badge: String(stats.total_blood_banks), badgeColor: 'var(--text3)' },
+            ]
+        },
+        {
+            section: 'BLOOD OPERATIONS', items: [
+                { to: '/admin/inventory', icon: Package, label: 'Inventory' },
+                { to: '/admin/requests', icon: FileText, label: 'Blood Requests' },
+                { to: '/admin/donations', icon: Heart, label: 'Donations' },
+                { to: '/admin/health-checks', icon: HeartPulse, label: 'Health Checks' },
+                { to: '/admin/issues', icon: ArrowUpRight, label: 'Blood Issues' },
+            ]
+        },
+        {
+            section: 'FINANCE', items: [
+                { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
+            ]
+        },
+        {
+            section: 'SYSTEM', items: [
+                { to: '/admin/users', icon: UserCog, label: 'Users & Roles' },
+                { to: '/admin/reports', icon: BarChart2, label: 'Reports' },
+                { to: '/admin/audit', icon: ScrollText, label: 'Audit Logs' },
+                { to: '/admin/settings', icon: Settings, label: 'Settings' },
+            ]
+        },
+    ];
+
+    if (loading || !user) return null;
     return (
         <motion.aside
             initial={{ x: -240, opacity: 0 }}
@@ -80,7 +103,7 @@ export default function AdminSidebar() {
                 <div style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg,#D90025,#8B0010)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                     <Shield size={20} color="#fff" />
                 </div>
-                <div style={{ fontFamily: 'var(--font-sub)', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 3 }}>Admin Kerala</div>
+                <div style={{ fontFamily: 'var(--font-sub)', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 3 }}>{user.name}</div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--red)', marginBottom: 6, letterSpacing: '0.05em' }}>SUPER ADMIN</div>
                 <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text3)', marginBottom: 10 }}>HEM∆ System · Kerala</div>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 100, padding: '2px 10px' }}>

@@ -74,25 +74,50 @@ function normalizeEntityId(userRow) {
 }
 
 async function findUserByEmail(email, role) {
-  let sql = "SELECT * FROM auth_users WHERE email = ?";
+  let sql = `
+    SELECT au.*, 
+           d.name as donor_name, d.blood_group, d.city as donor_city, d.status as donor_status,
+           h.hospital_name, h.city as hospital_city,
+           bb.bank_name, bb.city as bank_city, bb.contact_no as bank_contact
+    FROM auth_users au
+    LEFT JOIN donor d ON au.linked_donor_id = d.donor_id
+    LEFT JOIN hospital h ON au.linked_hospital_id = h.hospital_id
+    LEFT JOIN blood_bank bb ON au.linked_bank_id = bb.bank_id
+    WHERE au.email = ?
+  `;
   const params = [email];
 
   if (role) {
-    sql += " AND role = ?";
+    sql += " AND au.role = ?";
     params.push(role);
   }
-
-  sql += " LIMIT 1";
 
   const rows = await query(sql, params);
   return rows[0] || null;
 }
 
 async function findUserById(userId) {
-  const rows = await query("SELECT * FROM auth_users WHERE user_id = ? LIMIT 1", [
-    userId,
-  ]);
-  return rows[0] || null;
+  const sql = `
+    SELECT au.*, 
+           d.name as donor_name, d.blood_group as d_bg, d.city as donor_city, d.status as donor_status,
+           h.hospital_name, h.city as hospital_city,
+           bb.bank_name, bb.city as bank_city, bb.contact_no as bank_contact
+    FROM auth_users au
+    LEFT JOIN donor d ON au.linked_donor_id = d.donor_id
+    LEFT JOIN hospital h ON au.linked_hospital_id = h.hospital_id
+    LEFT JOIN blood_bank bb ON au.linked_bank_id = bb.bank_id
+    WHERE au.user_id = ?
+    LIMIT 1
+  `;
+  const rows = await query(sql, [userId]);
+  if (rows[0]) {
+    require('fs').appendFileSync(require('path').join(__dirname, 'debug.log'), `[findUserById] FOUND: ${JSON.stringify(rows[0])}\n`);
+  } else {
+    require('fs').appendFileSync(require('path').join(__dirname, 'debug.log'), `[findUserById] MISSING: ${userId}\n`);
+    console.warn(`[findUserById] User not found for ID: ${userId}`);
+    return null;
+  }
+  return rows[0];
 }
 
 async function createRefreshTokenSession(userId, metadata = {}) {
@@ -278,13 +303,34 @@ async function ensureAuthSchema() {
 }
 
 function toAuthPayload(userRow) {
-  return {
+  if (!userRow) return null;
+  require('fs').appendFileSync(require('path').join(__dirname, 'debug.log'), `[toAuthPayload] ${Date.now()} ${JSON.stringify(userRow)}\n`);
+
+  const payload = {
     user_id: userRow.user_id,
     role: userRow.role,
     account_status: userRow.account_status,
     email: userRow.email,
     entity_id: normalizeEntityId(userRow),
   };
+
+  if (userRow.role === 'donor') {
+    payload.name = userRow.donor_name || 'Donor';
+    payload.blood_group = userRow.d_bg || userRow.blood_group;
+    payload.city = userRow.donor_city;
+    payload.status = userRow.donor_status;
+  } else if (userRow.role === 'hospital') {
+    payload.name = userRow.hospital_name || 'Hospital';
+    payload.city = userRow.hospital_city;
+  } else if (userRow.role === 'blood_bank') {
+    payload.name = userRow.bank_name || 'Blood Bank';
+    payload.city = userRow.bank_city;
+    payload.contact_no = userRow.bank_contact;
+  } else if (userRow.role === 'admin') {
+    payload.name = 'System Administrator';
+  }
+
+  return payload;
 }
 
 module.exports = {

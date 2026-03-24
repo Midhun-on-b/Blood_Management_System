@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, AlertTriangle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import BloodBankLayout from '../../components/bloodbank/BloodBankLayout';
 import BloodBankLoadingSkeleton from '../../components/bloodbank/BloodBankLoadingSkeleton';
 import PriorityBadge from '../../components/hospital/PriorityBadge';
 import StatusBadge from '../../components/hospital/StatusBadge';
 import BloodGroupBadge from '../../components/hospital/BloodGroupBadge';
 import IssueBloodModal from '../../components/bloodbank/IssueBloodModal';
-import { getRequests, getStock } from '../../api/bloodBankApi';
+import { getRequests, getStock, approveRequest, rejectRequest } from '../../api/bloodBankApi';
 
-const STATUS_TABS = ['All', 'Pending', 'Processing', 'Fulfilled'];
+const STATUS_TABS = ['All', 'Pending', 'Approved', 'Rejected', 'Completed'];
 
 function fmt(d) { return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
 
@@ -32,6 +33,28 @@ export default function BloodBankRequests() {
 
     useEffect(() => { fetchAll(); }, []);
 
+    const handleApprove = async (requestId) => {
+        try {
+            await approveRequest(requestId);
+            toast.success('Request approved successfully');
+            fetchAll(); // Refresh the list
+        } catch (err) {
+            console.error('Approve error:', err);
+            toast.error('Failed to approve request');
+        }
+    };
+
+    const handleReject = async (requestId) => {
+        try {
+            await rejectRequest(requestId);
+            toast.success('Request rejected');
+            fetchAll(); // Refresh the list
+        } catch (err) {
+            console.error('Reject error:', err);
+            toast.error('Failed to reject request');
+        }
+    };
+
     if (loading) return (
         <BloodBankLayout title="Incoming Requests" page="REQUESTS">
             <BloodBankLoadingSkeleton showHero={false} showFilters cardCount={4} listRows={6} />
@@ -48,12 +71,17 @@ export default function BloodBankRequests() {
         return s?.available_units || 0;
     }
 
-    const emergencyPending = requests.filter(r => r.priority === 'Emergency' && r.status === 'Pending');
+    const normalizeStatus = (status) => String(status || '').trim().toLowerCase();
+    const emergencyPending = requests.filter(r => normalizeStatus(r.status) === 'pending' && r.priority === 'Emergency');
     const counts = { All: requests.length };
-    requests.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+    requests.forEach(r => {
+        const key = normalizeStatus(r.status);
+        counts[key] = (counts[key] || 0) + 1;
+    });
 
     const filtered = requests.filter(r => {
-        const mt = tab === 'All' || r.status === tab;
+        const normalizedStatus = normalizeStatus(r.status);
+        const mt = tab === 'All' || normalizedStatus === tab.toLowerCase();
         const mp = prioFilter === 'All' || r.priority === prioFilter;
         const rid = `REQ-${String(r.request_id).padStart(3,'0')}`;
         const mq = rid.toLowerCase().includes(search.toLowerCase())
@@ -68,7 +96,7 @@ export default function BloodBankRequests() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* Stats */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
-                    {[{ label: 'TOTAL REQUESTS', val: String(requests.length), color: '#fff' }, { label: 'PENDING', val: String(counts.Pending || 0), color: 'var(--red)', pulse: emergencyPending.length > 0 }, { label: 'PROCESSING', val: String(counts.Processing || 0), color: '#f59e0b' }, { label: 'FULFILLED', val: String(counts.Fulfilled || 0), color: '#22c55e' }].map(({ label, val, color, pulse }, i) => (
+                    {[{ label: 'TOTAL REQUESTS', val: String(requests.length), color: '#fff' }, { label: 'PENDING', val: String(counts.Pending || 0), color: 'var(--red)', pulse: emergencyPending.length > 0 }, { label: 'APPROVED', val: String(counts.Approved || 0), color: '#22c55e' }, { label: 'REJECTED', val: String(counts.Rejected || 0), color: '#f59e0b' }].map(({ label, val, color, pulse }, i) => (
                         <motion.div key={label} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: i * 0.07 }} style={{ background: '#0F0F17', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 24 }}>
                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 14 }}>{label}</div>
                             <div style={{ fontFamily: 'var(--font-display)', fontSize: 52, color, lineHeight: 1 }}>{val}</div>
@@ -131,9 +159,15 @@ export default function BloodBankRequests() {
                                     {stockOk ? `✓ ${avail} avail.` : `✗ Only ${avail}`}
                                 </div>
                                 <div>
-                                    {req.status === 'Pending' && <button onClick={() => setIssueRequest(req)} style={{ background: isEmerg ? 'var(--red)' : 'none', border: `1px solid ${isEmerg ? 'var(--red)' : 'rgba(255,255,255,0.15)'}`, cursor: 'pointer', borderRadius: 7, padding: '5px 10px', fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: isEmerg ? 600 : 400, color: isEmerg ? '#fff' : 'var(--text2)' }}>{isEmerg ? 'Approve & Issue →' : 'Process →'}</button>}
-                                    {req.status === 'Processing' && <button onClick={() => setIssueRequest(req)} style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', cursor: 'pointer', borderRadius: 7, padding: '5px 10px', fontFamily: 'var(--font-body)', fontSize: 11, color: '#f59e0b' }}>Complete →</button>}
-                                    {req.status === 'Fulfilled' && <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text3)' }}>View Details</span>}
+                                    {(req.status || '').toLowerCase() === 'pending' && stockOk && (
+                                        <div style={{ display: 'flex', gap: 4 }}>
+                                            <button onClick={() => handleApprove(req.request_id)} style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', cursor: 'pointer', borderRadius: 6, padding: '4px 8px', fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: '#22c55e' }}>✓ Approve</button>
+                                            <button onClick={() => handleReject(req.request_id)} style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer', borderRadius: 6, padding: '4px 8px', fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: '#ef4444' }}>✗ Reject</button>
+                                        </div>
+                                    )}
+                                    {(req.status || '').toLowerCase() === 'approved' && <button onClick={() => setIssueRequest(req)} style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', cursor: 'pointer', borderRadius: 7, padding: '5px 10px', fontFamily: 'var(--font-body)', fontSize: 11, color: '#f59e0b' }}>Issue Blood →</button>}
+                                    {(req.status || '').toLowerCase() === 'completed' && <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text3)' }}>✓ Completed</span>}
+                                    {(req.status || '').toLowerCase() === 'rejected' && <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text3)' }}>✗ Rejected</span>}
                                 </div>
                             </div>
                         );

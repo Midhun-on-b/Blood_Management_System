@@ -241,4 +241,45 @@ router.put("/deactivate/:id", requireRoles("admin"), (req, res) => {
     }
   );
 });
+// 4️⃣ Get donor dashboard statistics and trend
+router.get("/:id/stats", async (req, res) => {
+  if (req.auth.role === "donor" && Number(req.auth.entityId) !== Number(req.params.id)) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const donorId = req.params.id;
+
+  try {
+    // Basic counts and summary
+    const summaryQuery = `
+      SELECT 
+        (SELECT COUNT(*) FROM donation_record WHERE donor_id = ?) as total_donations,
+        (SELECT SUM(quantity) FROM donation_record WHERE donor_id = ?) as total_volume,
+        (SELECT COUNT(DISTINCT bank_id) FROM donation_record WHERE donor_id = ?) as banks_visited,
+        (SELECT donation_date FROM donation_record WHERE donor_id = ? ORDER BY donation_date DESC LIMIT 1) as last_donation
+    `;
+
+    // Trend data for the graph
+    const trendQuery = `
+      SELECT 
+        donation_date as date,
+        quantity as ml
+      FROM donation_record
+      WHERE donor_id = ?
+      ORDER BY donation_date ASC
+    `;
+
+    const summary = await runQuery(summaryQuery, [donorId, donorId, donorId, donorId]);
+    const trend = await runQuery(trendQuery, [donorId]);
+
+    res.json({
+      summary: summary[0],
+      trend: trend
+    });
+  } catch (error) {
+    console.error("Donor stats error:", error);
+    res.status(500).json({ error: "Failed to fetch donor statistics" });
+  }
+});
+
 module.exports = router;

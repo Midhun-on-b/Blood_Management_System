@@ -4,9 +4,21 @@ export default function StatusBadge({ status }) {
             bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.3)',
             color: '#f59e0b', label: '⏳ PENDING',
         },
+        Approved: {
+            bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.25)',
+            color: '#22c55e', label: '✓ APPROVED',
+        },
+        Rejected: {
+            bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)',
+            color: '#ef4444', label: '✗ REJECTED',
+        },
         Processing: {
             bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.3)',
             color: '#818cf8', label: '⟳ PROCESSING',
+        },
+        Completed: {
+            bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.25)',
+            color: '#22c55e', label: '✓ COMPLETED',
         },
         Fulfilled: {
             bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.25)',
@@ -25,7 +37,13 @@ export default function StatusBadge({ status }) {
             color: '#FF4460', label: 'OVERDUE',
         },
     };
-    const c = cfg[status] || cfg.Cancelled;
+
+    const normalized = String(status || '').trim();
+    const normalizedKey = normalized
+        ? normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase()
+        : 'Cancelled';
+
+    const c = cfg[normalizedKey] || cfg.Cancelled;
 
     return (
         <span style={{

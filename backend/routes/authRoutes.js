@@ -481,7 +481,9 @@ router.get("/me", requireAuth, async (req, res) => {
     return res.status(404).json({ message: "User not found" });
   }
 
-  return res.json({ user: toAuthPayload(user) });
+  const payload = toAuthPayload(user);
+  console.log('[GET /me] payload:', JSON.stringify(payload));
+  return res.json({ user: payload });
 });
 
 router.get(

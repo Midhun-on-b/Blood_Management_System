@@ -63,6 +63,10 @@ export const updateRequestStatus = (reqId, status) =>
     method: "PUT",
     body: JSON.stringify({ status }),
   });
+export const approveRequest = (reqId) =>
+  api(`/blood-requests/approve/${reqId}`, { method: "PUT" });
+export const rejectRequest = (reqId) =>
+  api(`/blood-requests/reject/${reqId}`, { method: "PUT" });
  
 // ── Blood Issues ──────────────────────────────────────────
 export const getIssues = () => api(`/blood-banks/${getBankId()}/issues`);
