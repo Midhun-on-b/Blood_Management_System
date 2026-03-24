@@ -15,6 +15,7 @@ const patientRoutes = require("./routes/patientRoutes");
 const hospitalRoutes = require("./routes/hospitalRoutes");
 const hospitalDashboardRoutes = require("./routes/hospitalDashboardRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const inventoryRoutes = require("./routes/inventoryRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const bloodIssueRoutes = require("./routes/bloodIssueRoutes");
 const adminPaymentRoutes = require("./routes/adminPaymentRoutes");
@@ -44,6 +45,7 @@ app.use("/patients", requireAuth, patientRoutes);
 app.use("/hospitals", requireAuth, hospitalRoutes);
 app.use("/hospital-dashboard", requireAuth, hospitalDashboardRoutes);
 app.use("/payments", requireAuth, paymentRoutes);
+app.use("/inventory", requireAuth, inventoryRoutes);
 
 app.use("/blood-issues", requireAuth, bloodIssueRoutes);
 app.use("/admin/payments", requireAuth, requireRoles("admin"), adminPaymentRoutes);

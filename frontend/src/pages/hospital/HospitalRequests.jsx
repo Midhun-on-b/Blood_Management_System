@@ -337,6 +337,29 @@ const fetchRequests = async () => {
                                                     Last updated: {fmt(req.request_date)}
                                                 </span>
                                             </div>
+                                            {req.status === 'Approved' && (
+                                                <div style={{ marginTop: 12, padding: 12, background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8 }}>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', marginBottom: 8 }}>PAYMENT REQUIRED</div>
+                                                    <div style={{ color: '#fff', marginBottom: 4 }}>Amount: ₹{(req.units_required * 500).toLocaleString()}</div>
+                                                    <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8 }}>
+                                                        Go to Payments section to complete payment before blood can be issued.
+                                                    </div>
+                                                    <button
+                                                        onClick={() => window.location.href = '/hospital/payments'}
+                                                        style={{
+                                                            background: 'var(--red)',
+                                                            border: 'none',
+                                                            borderRadius: 6,
+                                                            padding: '6px 12px',
+                                                            color: '#fff',
+                                                            cursor: 'pointer',
+                                                            fontSize: 12
+                                                        }}
+                                                    >
+                                                        Go to Payments →
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </motion.div>
                                 )}

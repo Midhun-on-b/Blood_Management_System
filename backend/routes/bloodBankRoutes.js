@@ -462,68 +462,89 @@ router.post("/:id/issues", ...protectBank, (req, res) => {
   const { request_id, issue_date, units_issued } = req.body;
   const bankId = req.params.id;
 
-  // Check stock availability first
+  if (!request_id || !issue_date || !units_issued) {
+    return res.status(400).json({ message: "request_id, issue_date, units_issued are required" });
+  }
+
   db.query(
-    `SELECT p.blood_group FROM blood_request br
+    `SELECT br.status, p.blood_group, br.bank_id, br.hospital_id
+     FROM blood_request br
      JOIN patient p ON br.patient_id = p.patient_id
      WHERE br.request_id = ?`,
     [request_id],
     (err2, rows) => {
       if (err2) return res.status(500).json({ message: "DB error", error: err2 });
       if (!rows.length) return res.status(404).json({ message: "Request not found" });
-      const bg = rows[0].blood_group;
 
+      const { status: reqStatus, blood_group: bg, bank_id: reqBankId, hospital_id } = rows[0];
+      if (Number(reqBankId) !== Number(bankId)) {
+        return res.status(403).json({ message: "Request does not belong to this blood bank" });
+      }
+
+      if (String(reqStatus).toLowerCase() !== 'approved') {
+        return res.status(400).json({ message: `Cannot issue blood for request in status '${reqStatus}'` });
+      }
+
+      // Check if payment is completed
       db.query(
-        "SELECT available_units FROM blood_stock WHERE bank_id = ? AND blood_group = ?",
-        [bankId, bg],
-        (err3, stock) => {
-          if (err3) return res.status(500).json({ message: "DB error", error: err3 });
-          if (!stock.length || stock[0].available_units < units_issued) {
-            return res.status(400).json({ message: "Insufficient stock available" });
+        "SELECT payment_status FROM payment WHERE request_id = ? AND bank_id = ?",
+        [request_id, bankId],
+        (errPay, payments) => {
+          if (errPay) return res.status(500).json({ message: "DB error", error: errPay });
+
+          if (!payments.length) {
+            return res.status(400).json({ message: "No payment record found for this request" });
           }
 
-          // Proceed with issue
+          const paymentStatus = String(payments[0].payment_status).toLowerCase();
+          if (paymentStatus !== 'paid' && paymentStatus !== 'completed') {
+            return res.status(400).json({
+              message: `Cannot issue blood until payment is completed. Current payment status: ${payments[0].payment_status}`
+            });
+          }
+
           db.query(
-            "INSERT INTO blood_issue (request_id, issue_date, units_issued) VALUES (?, ?, ?)",
-            [request_id, issue_date, units_issued],
-            (err, result) => {
-              if (err) return res.status(500).json({ message: "DB error", error: err });
-              const issueId = result.insertId;
+            "SELECT available_units FROM blood_stock WHERE bank_id = ? AND blood_group = ?",
+            [bankId, bg],
+            (err3, stock) => {
+              if (err3) return res.status(500).json({ message: "DB error", error: err3 });
+              if (!stock.length || stock[0].available_units < units_issued) {
+                return res.status(400).json({ message: "Insufficient stock available" });
+              }
 
-              // Update request status to Fulfilled
               db.query(
-                "UPDATE blood_request SET status = 'Fulfilled' WHERE request_id = ?",
-                [request_id],
-                () => {}
-              );
+                "INSERT INTO blood_issue (request_id, issue_date, units_issued) VALUES (?, ?, ?)",
+                [request_id, issue_date, units_issued],
+                (err, result) => {
+                  if (err) return res.status(500).json({ message: "DB error", error: err });
+                  const issueId = result.insertId;
 
-              // Deduct from blood stock
-              db.query(
-                `UPDATE blood_stock 
-                 SET available_units = available_units - ?, last_updated = CURDATE()
-                 WHERE bank_id = ? AND blood_group = ?`,
-                [units_issued, bankId, bg],
-                () => {}
-              );
+                  db.query(
+                    "UPDATE blood_request SET status = 'completed' WHERE request_id = ?",
+                    [request_id],
+                    () => {}
+                  );
 
-              // Auto-create payment record
-              db.query(
-                `SELECT br.hospital_id FROM blood_request br WHERE br.request_id = ?`,
-                [request_id],
-                (err4, reqs) => {
-                  if (!err4 && reqs.length) {
-                    const amount = units_issued * 500; // ₹500 per unit
-                    db.query(
-                      `INSERT INTO payment (request_id, hospital_id, bank_id, payment_date, amount, payment_status)
-                       VALUES (?, ?, ?, ?, ?, 'Pending')`,
-                      [request_id, reqs[0].hospital_id, bankId, issue_date, amount],
-                      () => {}
-                    );
-                  }
+                  db.query(
+                    `UPDATE blood_stock
+                     SET available_units = available_units - ?, last_updated = CURDATE()
+                     WHERE bank_id = ? AND blood_group = ?`,
+                    [units_issued, bankId, bg],
+                    () => {}
+                  );
+
+                  // Update payment status to completed
+                  db.query(
+                    "UPDATE payment SET payment_status = 'completed' WHERE request_id = ?",
+                    [request_id],
+                    (errP) => {
+                      if (errP) console.error("PAYMENT UPDATE ERROR:", errP);
+                    }
+                  );
+
+                  res.status(201).json({ message: "Blood issued successfully", issue_id: issueId });
                 }
               );
-
-              res.status(201).json({ message: "Blood issued successfully", issue_id: issueId });
             }
           );
         }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Download } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Search, Download, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import HospitalLayout from '../../components/hospital/HospitalLayout';
 import StatusBadge from '../../components/hospital/StatusBadge';
@@ -49,6 +50,8 @@ export default function HospitalPayments() {
 
     const [filter, setFilter] = useState('All');
     const [search, setSearch] = useState('');
+    const [confirmPayment, setConfirmPayment] = useState(null);
+    const [paymentLoading, setPaymentLoading] = useState(false);
 
 
 
@@ -62,14 +65,25 @@ export default function HospitalPayments() {
             .then(res => readJsonSafe(res, 'Failed to load payments'))
             .then(data => {
 
-                const formatted = (Array.isArray(data) ? data : []).map(p => ({
-                    payment_id: String(p.payment_id),
-                    bank_name: p.bank_name,
-                    request_id: "REQ-" + p.payment_id,
-                    amount: Number(p.amount),
-                    payment_date: p.payment_date,
-                    payment_status: p.payment_status === "Completed" ? "Paid" : p.payment_status
-                }));
+                const formatted = (Array.isArray(data) ? data : []).map(p => {
+                    const rawStatus = String(p.payment_status || '').trim().toLowerCase();
+                    const normalizedStatus = rawStatus === 'completed' ? 'Paid' :
+                        rawStatus === 'paid' ? 'Paid' :
+                        rawStatus === 'pending' ? 'Pending' :
+                        rawStatus === 'overdue' ? 'Overdue' :
+                        rawStatus === 'processing' ? 'Processing' :
+                        rawStatus === 'cancelled' ? 'Cancelled' :
+                        rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
+
+                    return {
+                        payment_id: String(p.payment_id),
+                        bank_name: p.bank_name,
+                        request_id: p.request_id ? `REQ-${p.request_id}` : `REQ-${p.payment_id}`,
+                        amount: Number(p.amount),
+                        payment_date: p.payment_date,
+                        payment_status: normalizedStatus
+                    };
+                });
 
                 setPayments(formatted);
 
@@ -106,7 +120,26 @@ export default function HospitalPayments() {
 
     }, []);
 
-
+    const handlePay = async (paymentId) => {
+        setError('');
+        try {
+            setPaymentLoading(true);
+            const res = await apiFetch(`/payments/${paymentId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ payment_status: 'Paid' })
+            });
+            const result = await readJsonSafe(res, 'Failed to update payment status');
+            setPayments(prev => prev.map((p) => p.payment_id === paymentId ? { ...p, payment_status: 'Paid' } : p));
+            toast.success(result.message || 'Payment marked as paid');
+            setConfirmPayment(null);
+        } catch (err) {
+            console.error(err);
+            setError(err.message || 'Unable to mark payment as paid.');
+            toast.error(err.message || 'Unable to mark payment as paid.');
+        } finally {
+            setPaymentLoading(false);
+        }
+    };
 
     /* =========================
        CALCULATIONS
@@ -142,6 +175,115 @@ export default function HospitalPayments() {
 
     return (
         <HospitalLayout title="Payments" page="PAYMENTS">
+            {/* Confirmation Modal */}
+            {confirmPayment && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.75)',
+                        backdropFilter: 'blur(4px)',
+                        zIndex: 1000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 24
+                    }}
+                    onClick={() => setConfirmPayment(null)}
+                >
+                    <motion.div
+                        initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.95, opacity: 0 }}
+                        style={{
+                            background: '#0F0F17',
+                            border: '1px solid rgba(217,0,37,0.3)',
+                            borderRadius: 16,
+                            padding: 28,
+                            maxWidth: 420,
+                            width: '100%',
+                            position: 'relative'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            onClick={() => setConfirmPayment(null)}
+                            style={{
+                                position: 'absolute',
+                                top: 16,
+                                right: 16,
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'var(--text3)'
+                            }}
+                        >
+                            <X size={18} />
+                        </button>
+                        <div style={{ fontFamily: 'var(--font-sub)', fontSize: 22, color: '#fff', marginBottom: 8, paddingRight: 28 }}>Confirm Payment</div>
+                        <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--text3)', marginBottom: 20 }}>Are you sure you want to pay this amount?</div>
+
+                        <div style={{ background: 'rgba(217,0,37,0.06)', border: '1px solid rgba(217,0,37,0.2)', borderRadius: 12, padding: 16, marginBottom: 20 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text3)', marginBottom: 4 }}>PAYMENT ID</div>
+                                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#fff' }}>{confirmPayment.payment_id}</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text3)', marginBottom: 4 }}>REQUEST ID</div>
+                                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--red)' }}>{confirmPayment.request_id}</div>
+                                </div>
+                            </div>
+                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(217,0,37,0.2)' }}>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text3)', marginBottom: 4 }}>AMOUNT</div>
+                                <div style={{ fontFamily: 'var(--font-display)', fontSize: 32, color: '#fff', lineHeight: 1 }}>₹{confirmPayment.amount.toLocaleString()}</div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 12 }}>
+                            <button
+                                onClick={() => setConfirmPayment(null)}
+                                style={{
+                                    flex: 1,
+                                    background: 'none',
+                                    border: '1px solid rgba(255,255,255,0.12)',
+                                    borderRadius: 10,
+                                    padding: 11,
+                                    color: 'var(--text2)',
+                                    cursor: 'pointer',
+                                    fontFamily: 'var(--font-body)',
+                                    fontSize: 14
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => handlePay(confirmPayment.payment_id)}
+                                disabled={paymentLoading}
+                                style={{
+                                    flex: 1.6,
+                                    background: 'var(--red)',
+                                    border: 'none',
+                                    borderRadius: 10,
+                                    padding: 11,
+                                    color: '#fff',
+                                    cursor: paymentLoading ? 'not-allowed' : 'pointer',
+                                    fontFamily: 'var(--font-body)',
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    opacity: paymentLoading ? 0.7 : 1
+                                }}
+                            >
+                                {paymentLoading ? 'Processing...' : 'Confirm Payment'}
+                            </button>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {error && (
                     <div style={{
@@ -229,8 +371,19 @@ export default function HospitalPayments() {
                             <div style={{ fontFamily: 'var(--font-sub)', fontWeight: 700, fontSize: 16, color: '#fff' }}>₹{p.amount.toLocaleString()}</div>
                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text3)' }}>{fmt(p.payment_date)}</div>
                             <StatusBadge status={p.payment_status} />
-                            <button style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12, color: p.payment_status === 'Pending' ? 'var(--red)' : 'var(--text3)', padding: 0 }}>
-                                {p.payment_status === 'Pending' ? 'Pay Now →' : 'Receipt →'}
+                            <button
+                                onClick={() => p.payment_status.toLowerCase() === 'pending' && setConfirmPayment(p)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: p.payment_status.toLowerCase() === 'pending' ? 'pointer' : 'default',
+                                    fontFamily: 'var(--font-body)',
+                                    fontSize: 12,
+                                    color: p.payment_status.toLowerCase() === 'pending' ? 'var(--red)' : 'var(--text3)',
+                                    padding: 0
+                                }}
+                            >
+                                {p.payment_status.toLowerCase() === 'pending' ? 'Pay Now →' : 'Receipt →'}
                             </button>
                         </div>
                     ))}

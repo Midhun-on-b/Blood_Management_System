@@ -11,30 +11,32 @@ import { useAuth } from '../../auth/AuthContext';
 
 export default function BloodBankSidebar() {
     const navigate = useNavigate();
-    const { signOut } = useAuth();
+    const { user, loading, signOut } = useAuth();
     const [totalUnits, setTotalUnits] = useState(0);
     const [pendingRequests, setPendingRequests] = useState(0);
     const [emergencyCount, setEmergencyCount] = useState(0);
     const [eligibleDonors, setEligibleDonors] = useState(0);
     const [lowStock, setLowStock] = useState(0);
-    const [bankName, setBankName] = useState('Blood Bank');
-    const [city, setCity] = useState('Kerala');
-    const [nacoNumber, setNacoNumber] = useState('');
+    const [bankName, setBankName] = useState(user?.name || 'Blood Bank');
+    const [city, setCity] = useState(user?.city || 'Kerala');
+    const [nacoNumber, setNacoNumber] = useState(user?.contact_no || '');
 
     useEffect(() => {
-        getDashboard().then(data => {
-            setTotalUnits((data.stock || []).reduce((s, b) => s + b.available_units, 0));
-            setPendingRequests((data.requests || []).filter(r => r.status === 'Pending').length);
-            setEmergencyCount((data.requests || []).filter(r => r.priority === 'Emergency' && r.status === 'Pending').length);
-            setEligibleDonors((data.donorStats || []).find(d => d.status === 'active')?.count || 0);
-            setLowStock((data.stock || []).filter(s => (s.available_units / (s.capacity || 200)) <= 0.3).length);
-        }).catch(() => {});
-        getBloodBank().then(bank => {
-            setBankName(bank.bank_name);
-            setCity(bank.city);
-            setNacoNumber(bank.contact_no || '');
-        }).catch(() => {});
-    }, []);
+        if (!loading && user) {
+            getDashboard().then(data => {
+                setTotalUnits((data.stock || []).reduce((s, b) => s + b.available_units, 0));
+                setPendingRequests((data.requests || []).filter(r => r.status === 'Pending').length);
+                setEmergencyCount((data.requests || []).filter(r => r.priority === 'Emergency' && r.status === 'Pending').length);
+                setEligibleDonors((data.donorStats || []).find(d => d.status === 'active')?.count || 0);
+                setLowStock((data.stock || []).filter(s => (s.available_units / (s.capacity || 200)) <= 0.3).length);
+            }).catch(() => { });
+            getBloodBank().then(bank => {
+                setBankName(bank.bank_name);
+                setCity(bank.city);
+                setNacoNumber(bank.contact_no || '');
+            }).catch(() => { });
+        }
+    }, [user, loading]);
 
     const NAV = [
         {
@@ -73,6 +75,8 @@ export default function BloodBankSidebar() {
             ]
         },
     ];
+
+    if (loading || !user) return null;
 
     return (
         <motion.aside

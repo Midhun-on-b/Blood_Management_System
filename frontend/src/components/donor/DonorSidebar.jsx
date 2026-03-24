@@ -4,10 +4,8 @@ import {
     LayoutDashboard, Bell, Droplets, HeartPulse,
     Calendar, MapPin, Users, User, Settings, LogOut, Building2,
 } from 'lucide-react';
-import { mockDonor } from '../../data/mockData';
 import { useAuth } from '../../auth/AuthContext';
 
-const initials = mockDonor.name.split(' ').map(n => n[0]).join('');
 
 function EligibilityBadge({ status, small }) {
     const cfg = {
@@ -62,7 +60,14 @@ export { EligibilityBadge };
 
 export default function DonorSidebar() {
     const navigate = useNavigate();
-    const { signOut } = useAuth();
+    const { user, loading, signOut } = useAuth();
+
+    if (loading || !user) return null;
+
+    // Debugging: check why name/city are missing
+    if (!user.name) console.warn('DonorSidebar: user.name is missing', user);
+
+    const initials = user.name ? user.name.split(' ').map(n => n[0]).join('') : 'D';
 
     return (
         <motion.aside
@@ -103,15 +108,15 @@ export default function DonorSidebar() {
                     {initials}
                 </div>
                 <div style={{ fontFamily: 'var(--font-sub)', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 3 }}>
-                    {mockDonor.name}
+                    {user.name || 'Donor'}
                 </div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--red)', marginBottom: 6, letterSpacing: '0.05em' }}>
-                    {mockDonor.blood_group} · DONOR
+                    {user.blood_group || 'N/A'} · DONOR
                 </div>
                 <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text3)', marginBottom: 10 }}>
-                    {mockDonor.city}, Kerala
+                    {user.city ? `${user.city}, Kerala` : 'Kerala, India'}
                 </div>
-                <EligibilityBadge status={mockDonor.status} small />
+                <EligibilityBadge status={user.status} small />
             </div>
 
             {/* Navigation */}
@@ -175,7 +180,7 @@ export default function DonorSidebar() {
                         Donor ID
                     </div>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#fff' }}>
-                        {mockDonor.donor_id}
+                        {user.entity_id}
                     </div>
                 </div>
                 <button

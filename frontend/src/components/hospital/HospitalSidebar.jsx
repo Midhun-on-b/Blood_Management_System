@@ -1,51 +1,72 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     LayoutDashboard, Bell, Droplets, Building2,
     Users, CreditCard, User, Settings, LogOut,
 } from 'lucide-react';
-import { mockHospital, mockBloodRequests } from '../../data/hospitalMockData';
+import { mockBloodRequests } from '../../data/hospitalMockData';
 import { useAuth } from '../../auth/AuthContext';
 
-const pendingCount = mockBloodRequests.filter(r => r.status === 'Pending').length;
-const activePatients = 5;
-const emergencyCount = mockBloodRequests.filter(r => r.priority === 'Emergency' && r.status === 'Pending').length;
+import { apiFetch } from '../../services/http';
 
-const NAV_SECTIONS = [
-    {
-        label: 'OVERVIEW', items: [
-            { to: '/hospital/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { to: '/hospital/notifications', icon: Bell, label: 'Notifications', badge: String(emergencyCount) },
-        ],
-    },
-    {
-        label: 'BLOOD MANAGEMENT', items: [
-            { to: '/hospital/requests', icon: Droplets, label: 'Blood Requests', badge: `${pendingCount} Pending` },
-            { to: '/hospital/blood-banks', icon: Building2, label: 'Blood Banks' },
-        ],
-    },
-    {
-        label: 'PATIENTS', items: [
-            { to: '/hospital/patients', icon: Users, label: 'Patients', badge: `${activePatients} Active` },
-        ],
-    },
-    {
-        label: 'FINANCE', items: [
-            { to: '/hospital/payments', icon: CreditCard, label: 'Payments' },
-        ],
-    },
-    {
-        label: 'ACCOUNT', items: [
-            { to: '/hospital/profile', icon: User, label: 'Profile' },
-            { to: '/hospital/profile', icon: Settings, label: 'Settings' },
-        ],
-    },
-];
 
 export default function HospitalSidebar() {
     const navigate = useNavigate();
-    const { signOut } = useAuth();
+    const { user, loading, signOut } = useAuth();
+    const [counts, setCounts] = useState({
+        requests: 0,
+        patients: 0,
+        emergency: 0
+    });
+
+    useEffect(() => {
+        if (!loading && user?.entity_id) {
+            apiFetch(`/hospital-dashboard/${user.entity_id}/stats`)
+                .then(res => res.json())
+                .then(data => {
+                    setCounts({
+                        requests: data.requests || 0,
+                        patients: data.patients || 0,
+                        emergency: data.emergency || 0
+                    });
+                })
+                .catch(() => { });
+        }
+    }, [user, loading]);
+
+    if (loading || !user) return null;
+
+    const NAV_SECTIONS = [
+        {
+            label: 'OVERVIEW', items: [
+                { to: '/hospital/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+                { to: '/hospital/notifications', icon: Bell, label: 'Notifications', badge: counts.emergency > 0 ? String(counts.emergency) : null },
+            ],
+        },
+        {
+            label: 'BLOOD MANAGEMENT', items: [
+                { to: '/hospital/requests', icon: Droplets, label: 'Blood Requests', badge: counts.requests > 0 ? `${counts.requests} Pending` : null },
+                { to: '/hospital/blood-banks', icon: Building2, label: 'Blood Banks' },
+            ],
+        },
+        {
+            label: 'PATIENTS', items: [
+                { to: '/hospital/patients', icon: Users, label: 'Patients', badge: counts.patients > 0 ? `${counts.patients} Active` : null },
+            ],
+        },
+        {
+            label: 'FINANCE', items: [
+                { to: '/hospital/payments', icon: CreditCard, label: 'Payments' },
+            ],
+        },
+        {
+            label: 'ACCOUNT', items: [
+                { to: '/hospital/profile', icon: User, label: 'Profile' },
+                { to: '/hospital/profile', icon: Settings, label: 'Settings' },
+            ],
+        },
+    ];
 
     return (
         <motion.aside
@@ -79,22 +100,22 @@ export default function HospitalSidebar() {
                     <Building2 size={20} color="var(--red)" />
                 </div>
                 <div style={{ fontFamily: 'var(--font-sub)', fontWeight: 700, fontSize: 15, color: '#fff', marginBottom: 3 }}>
-                    {mockHospital.hospital_name}
+                    {user.name}
                 </div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--red)', marginBottom: 6, letterSpacing: '0.05em' }}>
                     HOSPITAL · ADMIN
                 </div>
                 <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--text3)', marginBottom: 10 }}>
-                    {mockHospital.city}, Kerala
+                    {user.city}, Kerala
                 </div>
-                {pendingCount > 0 && (
+                {counts.requests > 0 && (
                     <span style={{
                         display: 'inline-block',
                         background: 'rgba(217,0,37,0.1)', border: '1px solid rgba(217,0,37,0.3)',
                         borderRadius: 100, padding: '2px 10px',
                         fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--red)',
                     }}>
-                        {pendingCount} Active Requests
+                        {counts.requests} Active Requests
                     </span>
                 )}
             </div>
@@ -142,7 +163,7 @@ export default function HospitalSidebar() {
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
                 <div style={{ background: '#0F0F17', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: 12, marginBottom: 12 }}>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text3)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.1em' }}>HOSPITAL ID</div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#fff' }}>{mockHospital.hospital_id}</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#fff' }}>{user.entity_id}</div>
                 </div>
                 <button
                     onClick={async () => { await signOut(); navigate('/login'); }}
