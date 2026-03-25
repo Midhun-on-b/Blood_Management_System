@@ -260,10 +260,10 @@ The **Kerala Network Map** (`kerala-map.png`) is used in the Admin Dashboard and
 ---
 
 ## 📝 Roadmap
-- [x] Phase 1-5: Portal UI Development
-- [x] Backend API Implementation
-- [x] Authentication & Authorization
-- [x] Database Integration
+- [ ] Phase 1-5: Portal UI Development
+- [ ] Backend API Implementation
+- [ ] Authentication & Authorization
+- [ ] Database Integration
 - [ ] Comprehensive Test Suite
 - [ ] API Documentation (Swagger/OpenAPI)
 - [ ] Production Deployment Guide
